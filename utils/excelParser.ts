@@ -130,7 +130,7 @@ export const parseExcelData = async (file: File): Promise<SapOrderItem[]> => {
         // We specifically look for 'SA Belgesi' or 'SAS Numarası'
         const idx = {
             saBelgesi: findHeaderIndex(headers, ['SA Belgesi', 'SAS Numarasi', 'Siparis No', 'Belge']),
-            sasKalemNo: findHeaderIndex(headers, ['Kalem', 'Kalem No', 'SAS Kalemi', 'Siparis Kalemi']), // Added Item Number mapping
+            sasKalemNo: findHeaderIndex(headers, ['Kalem', 'Kalem No', 'SAS Kalemi', 'Siparis Kalemi']), 
             kalanGun: findHeaderIndex(headers, ['KALAN GÜN', 'Kalan Gun', 'Gun']),
             teslimatTarihi: findHeaderIndex(headers, ['Teslimat Tarihi', 'Teslim Tarihi', 'Tarih']),
             saticiKodu: findHeaderIndex(headers, ['Satici', 'Satıcı', 'Satıcı Kodu']),
@@ -139,7 +139,10 @@ export const parseExcelData = async (file: File): Promise<SapOrderItem[]> => {
             kisaMetin: findHeaderIndex(headers, ['Kisa Metin', 'Kısa Metin', 'Malzeme Tanımı', 'Metin']),
             sasMiktari: findHeaderIndex(headers, ['SAS Miktari', 'Sipariş Miktarı', 'Miktar']),
             bakiyeMiktari: findHeaderIndex(headers, ['Bakiye Miktari', 'Bakiye', 'Acik Miktar']),
-            olcuBirimi: findHeaderIndex(headers, ['Olcu Birimi', 'Ölçü Birimi', 'Birim', 'Olcu'])
+            olcuBirimi: findHeaderIndex(headers, ['Olcu Birimi', 'Ölçü Birimi', 'Birim', 'Olcu']),
+            // New Columns
+            talepEden: findHeaderIndex(headers, ['Talep Eden', 'Talep']),
+            olusturan: findHeaderIndex(headers, ['Olusturan', 'Oluşturan', 'Yaratan', 'Kaydeden'])
         };
 
         const mappedData: SapOrderItem[] = rows.map((row: any) => {
@@ -198,7 +201,10 @@ export const parseExcelData = async (file: File): Promise<SapOrderItem[]> => {
             bakiyeMiktari: Number(getVal(idx.bakiyeMiktari) || 0),
             olcuBirimi: String(getVal(idx.olcuBirimi) || 'ADT'),
             teslimatTarihi: teslimatStr,
-            status
+            status,
+            // New columns
+            talepEden: String(getVal(idx.talepEden) || ''),
+            olusturan: String(getVal(idx.olusturan) || '')
           };
         }).filter(item => {
             // Filter out empty or invalid rows

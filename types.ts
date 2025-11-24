@@ -16,6 +16,10 @@ export interface SapOrderItem {
   sasKalemNo?: string;    // SAS Kalem No (Item Number)
   revizeTarih?: string;   // Manually updated date
   
+  // New fields requested
+  talepEden?: string;     // Talep Eden
+  olusturan?: string;     // Oluşturan
+
   // Optional / Computed
   status?: 'critical' | 'warning' | 'ok'; 
 }
@@ -40,4 +44,11 @@ export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
   timestamp: Date;
+  image?: string; // Base64 string for uploaded images
+}
+
+export interface OrderUpdateResult {
+  saBelgesi: string;
+  sasKalemNo: string;
+  newDate: string; // DD.MM.YYYY
 }

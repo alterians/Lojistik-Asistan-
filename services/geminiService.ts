@@ -1,5 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
-import { SapOrderItem } from '../types';
+import { GoogleGenAI, SchemaType } from "@google/genai";
+import { SapOrderItem, OrderUpdateResult } from '../types';
 
 const getAiClient = () => {
   const apiKey = process.env.API_KEY;
@@ -18,47 +18,43 @@ export const generateEmailDraft = async (
   const ai = getAiClient();
   const modelId = "gemini-2.5-flash"; 
 
-  // Filter for critical items to highlight in prompt logic if needed
-  const criticalItems = items.filter(i => i.status === 'critical');
+  // Pre-sort items: Critical (delayed) first, then Warning, then OK
+  const sortedItems = [...items].sort((a, b) => a.kalanGun - b.kalanGun);
 
-  const dataContext = JSON.stringify(items.map(item => ({
+  const dataContext = JSON.stringify(sortedItems.map(item => ({
     PO: item.saBelgesi,
-    Material: item.malzeme,
-    Description: item.kisaMetin,
-    RemainingDays: item.kalanGun,
-    DeliveryDate: item.teslimatTarihi || "Belirtilmemiş",
-    OpenQty: item.bakiyeMiktari,
-    Unit: item.olcuBirimi
+    ItemNo: item.sasKalemNo || "",
+    Material: item.kisaMetin, // Use description as it's more readable than code
+    Qty: `${item.bakiyeMiktari} ${item.olcuBirimi}`,
+    Date: item.revizeTarih || item.teslimatTarihi || "Belirtilmemiş",
+    DaysRemaining: item.kalanGun
   })), null, 2);
 
   const prompt = `
     Sen profesyonel bir Lojistik ve Tedarik Zinciri Asistanısın.
-    Görevin: Aşağıdaki SAP sipariş verilerini kullanarak tedarikçi "${vendorName}" için net, kurumsal ve sonuç odaklı bir e-posta metni oluşturmak.
-    
-    Sipariş Verileri (JSON):
+    Görevin: Tedarikçi "${vendorName}" için, açık siparişlerin durumunu soran ve termin teyidi isteyen net, anlaşılır bir e-posta oluşturmak.
+
+    Veri Seti (Öncelik Sırasına Göre Sıralanmış):
     ${dataContext}
 
     E-posta Yazım Kuralları:
-    1. Format: Markdown.
-    2. Konu Satırı: Sipariş numaralarını veya genel durumu özetleyen dikkat çekici bir konu. (Örn: "Acil: Geciken Siparişler ve Termin Talebi")
-    3. Giriş: Nazikçe selamla ve açık siparişlerin durumunu sormak için yazıldığını belirt.
+    1. **Format:** Temiz Markdown kullan.
+    2. **Konu:** "Acil: Açık Sipariş Listesi ve Termin Durumu - ${vendorName}" gibi dikkat çekici bir konu yaz.
+    3. **Giriş:** Kısa ve profesyonel bir giriş yap.
     
-    4. Gecikme Özeti Tablosu (ÖNEMLİ):
-       - Ana malzeme listesinden önce, *sadece* geciken (Kalan Gün < 0) siparişleri içeren özel bir özet tablo oluştur.
-       - Bu tabloyu en fazla gecikmesi olandan (Kalan Gün değeri en düşük/negatif sayıdan) en aza doğru sırala.
-       - Bu tablonun başlıkları tam olarak şu şekilde olmalı: | SA Belgesi | KALAN GÜN |
-       - Eğer geciken sipariş yoksa bu tabloyu oluşturma.
+    4. **Sipariş Tablosu (En Önemli Kısım):**
+       - Tüm verileri TEK BİR TABLO içinde sun. Karışıklığı önlemek için tabloları bölme.
+       - Tablo Kolonları şu sırada olsun:
+         | Sipariş No | Kalem | Malzeme Tanımı | Miktar | Termin Tarihi | Durum |
+       - "Durum" kolonunda mantık şu olsun:
+         * Eğer 'DaysRemaining' < 0 ise: **GECİKTİ (X Gün)** (Bold yaz)
+         * Eğer 'DaysRemaining' 0-7 arası ise: Yaklaşıyor (X Gün)
+         * Diğerleri: -
+       
+    5. **Kapanış:** "Tabloda belirtilen siparişler için güncel terminlerinizi ivedilikle tarafımıza iletmenizi rica ederiz." minvalinde net bir çağrı yap.
+    6. **Ekstra Notlar:** ${extraInstructions}
 
-    5. Detaylı Malzeme Listesi: 
-       - Tüm açık siparişlerin detaylarını içeren ana tabloyu oluştur. 
-       - Tablo Kolonları: | Sipariş No | Malzeme Tanımı | Termin Tarihi | Kalan Gün | Miktar |
-       - Geciken satırları vurgula (Markdown bold).
-
-    6. Vurgu: Metin içinde gecikmelerin operasyona etkisinden kısaca bahset.
-    7. Call to Action: "Lütfen açık siparişleriniz için güncel termin bilgisini en kısa sürede iletiniz." mesajını ekle.
-    8. Ekstra Notlar: ${extraInstructions}
-
-    Sadece e-posta içeriğini (Markdown) döndür. Giriş/Çıkış konuşması yapma.
+    Çıktı sadece e-posta metni olsun. Sohbet cümlesi kurma.
   `;
 
   try {
@@ -82,6 +78,7 @@ export const refineEmail = async (
 
   const prompt = `
     Aşağıdaki e-posta taslağını kullanıcının yeni talimatına göre revize et.
+    Tablo formatını bozma, sadece metin veya tonlamayı ayarla.
     
     Mevcut Taslak (Markdown):
     ${currentEmail}
@@ -101,5 +98,78 @@ export const refineEmail = async (
   } catch (error) {
     console.error("Gemini Refinement Error:", error);
     return "Bağlantı hatası.";
+  }
+};
+
+export const processOrderUpdates = async (
+  currentItems: SapOrderItem[],
+  userInstruction: string,
+  imageBase64?: string
+): Promise<{ text: string, updates: OrderUpdateResult[] }> => {
+  const ai = getAiClient();
+  // Using gemini-2.0-flash which is good for multimodal tasks (images + text)
+  const modelId = "gemini-2.0-flash-exp"; 
+
+  const simplifiedList = currentItems.map(i => 
+    `${i.saBelgesi}${i.sasKalemNo ? '/' + i.sasKalemNo : ''} - ${i.malzeme} (${i.kisaMetin})`
+  ).join('\n');
+
+  const systemPrompt = `
+    Sen bir Lojistik Operasyon Asistanısın. Görevin, kullanıcının metin veya görsel olarak verdiği bilgileri analiz ederek, mevcut sipariş listesindeki tarihleri güncellemektir.
+
+    Mevcut Sipariş Listesi (Referans):
+    ${simplifiedList}
+
+    Kurallar:
+    1. Kullanıcının mesajında veya yüklediği görselde geçen tarih güncellemelerini tespit et.
+    2. Eğer görselde bir tablo varsa, ilgili Sipariş Numarası (SA Belgesi) ve Kalem Numarası ile eşleşen satırları bul.
+    3. Tarih formatını mutlaka "DD.MM.YYYY" (Örn: 15.05.2025) formatına çevir.
+    4. Sadece kesin emin olduğun eşleşmeleri JSON formatında döndür.
+    5. Ayrıca kullanıcıya ne yaptığını açıklayan kısa bir metin yanıtı ver.
+
+    Döndürmen gereken JSON şeması:
+    {
+       "responseMessage": "Kullanıcıya açıklama metni",
+       "updates": [
+          { "saBelgesi": "450012345", "sasKalemNo": "10", "newDate": "15.05.2025" }
+       ]
+    }
+    
+    Not: sasKalemNo yoksa boş string olabilir ama eşleşme için SA Belgesi şarttır.
+  `;
+
+  const parts: any[] = [{ text: systemPrompt }];
+  
+  if (imageBase64) {
+    parts.push({
+      inlineData: {
+        mimeType: "image/png",
+        data: imageBase64
+      }
+    });
+  }
+
+  parts.push({ text: `Kullanıcı Girdisi: ${userInstruction}` });
+
+  try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: { parts },
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    const jsonStr = response.text || "{}";
+    const parsed = JSON.parse(jsonStr);
+
+    return {
+      text: parsed.responseMessage || "İşlem tamamlandı.",
+      updates: parsed.updates || []
+    };
+
+  } catch (error) {
+    console.error("Gemini Order Update Error:", error);
+    return { text: "Güncelleme sırasında bir hata oluştu.", updates: [] };
   }
 };
