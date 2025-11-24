@@ -1,0 +1,5 @@
+{
+  "name": "LojistikAsistanı AI",
+  "description": "SAP Excel verilerini analiz eden ve tedarikçiler için otomatik termin takip e-postaları oluşturan akıllı asistan.",
+  "requestFramePermissions": []
+}
