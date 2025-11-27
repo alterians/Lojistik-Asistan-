@@ -35,7 +35,8 @@ export interface VendorSummary {
 export enum AppState {
   UPLOAD = 'UPLOAD',
   DASHBOARD = 'DASHBOARD',
-  GENERATOR = 'GENERATOR'
+  GENERATOR = 'GENERATOR',
+  COMPARISON = 'COMPARISON' // New State
 }
 
 export type TabType = 'email' | 'orders' | 'analysis';
@@ -51,4 +52,31 @@ export interface OrderUpdateResult {
   saBelgesi: string;
   sasKalemNo: string;
   newDate: string; // DD.MM.YYYY
+}
+
+// --- Comparison Types ---
+
+export type DiffType = 'added' | 'removed' | 'updated' | 'unchanged';
+
+export interface DiffItem {
+  type: DiffType;
+  item: SapOrderItem;
+  oldDate?: string; // For updates
+  newDate?: string; // For updates
+}
+
+export interface VendorComparison {
+  vendorId: string;
+  vendorName: string;
+  addedCount: number;
+  removedCount: number;
+  updatedCount: number;
+  items: DiffItem[];
+}
+
+export interface ComparisonReportData {
+  totalAdded: number;
+  totalRemoved: number;
+  totalUpdated: number;
+  vendors: VendorComparison[];
 }

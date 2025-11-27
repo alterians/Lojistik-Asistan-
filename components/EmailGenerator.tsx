@@ -26,6 +26,22 @@ const formatForInput = (dateStr: string | undefined) => {
     return '';
 };
 
+// --- Helper to Calculate Days Remaining ---
+const calculateDaysRemaining = (dateStr: string): number | null => {
+    if (!dateStr) return null;
+    const parts = dateStr.split('.'); // DD.MM.YYYY
+    if (parts.length !== 3) return null;
+    
+    const targetDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    if (isNaN(targetDate.getTime())) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const diffTime = targetDate.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
 // --- Helper for Image Upload ---
 const convertFileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -200,6 +216,10 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
   const [orderChatLoading, setOrderChatLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
 
+  // Notes & Asked Status State
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [askedItems, setAskedItems] = useState<Set<string>>(new Set());
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Sorting & Filtering State
@@ -220,7 +240,24 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
       ]);
       setSortConfig({ key: 'kalanGun', direction: 'asc' });
       setFilters({});
+      setNotes({});
+      setAskedItems(new Set());
   }, [vendor, initialTab]);
+
+  const getRowKey = (item: SapOrderItem) => `${item.saBelgesi}-${item.sasKalemNo || item.malzeme}`;
+
+  const handleNoteChange = (key: string, val: string) => {
+      setNotes(prev => ({ ...prev, [key]: val }));
+  };
+
+  const toggleAsked = (key: string) => {
+      setAskedItems(prev => {
+          const next = new Set(prev);
+          if (next.has(key)) next.delete(key);
+          else next.add(key);
+          return next;
+      });
+  };
 
   // --- Email Logic ---
   const generateDraft = async () => {
@@ -364,20 +401,25 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
         alert("Excel kütüphanesi yüklenemedi.");
         return;
     }
-    const exportData = filteredAndSortedItems.map(item => ({
-        "SA BELGESİ": item.sasKalemNo ? `${item.saBelgesi} / ${item.sasKalemNo}` : item.saBelgesi,
-        "MALZEME": item.malzeme,
-        "KISA METİN": item.kisaMetin,
-        "TESLİMAT TARİHİ": item.revizeTarih || item.teslimatTarihi || "",
-        "KALAN GÜN": item.kalanGun,
-        "BAKİYE": item.bakiyeMiktari,
-        "BİRİM": item.olcuBirimi,
-        "TALEP EDEN": item.talepEden,
-        "OLUŞTURAN": item.olusturan
-    }));
+    const exportData = filteredAndSortedItems.map(item => {
+        const key = getRowKey(item);
+        return {
+            "SA BELGESİ": item.sasKalemNo ? `${item.saBelgesi} / ${item.sasKalemNo}` : item.saBelgesi,
+            "MALZEME": item.malzeme,
+            "KISA METİN": item.kisaMetin,
+            "TESLİMAT TARİHİ": item.revizeTarih || item.teslimatTarihi || "",
+            "KALAN GÜN": item.kalanGun,
+            "BAKİYE": item.bakiyeMiktari,
+            "BİRİM": item.olcuBirimi,
+            "TALEP EDEN": item.talepEden,
+            "OLUŞTURAN": item.olusturan,
+            "AÇIKLAMA": notes[key] || '',
+            "DURUM": askedItems.has(key) ? 'Soruldu' : 'Bekliyor'
+        };
+    });
     const ws = window.XLSX.utils.json_to_sheet(exportData);
     const wscols = [
-        { wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 20 }, { wch: 15 }
+        { wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 12 }
     ];
     ws['!cols'] = wscols;
     const wb = window.XLSX.utils.book_new();
@@ -711,6 +753,8 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                                     <RenderHeader label="BİRİM" field="olcuBirimi" />
                                     <RenderHeader label="TALEP EDEN" field="talepEden" />
                                     <RenderHeader label="OLUŞTURAN" field="olusturan" />
+                                    <th className="p-4 border-b bg-slate-50 select-none text-slate-700 font-bold text-sm w-1/6">AÇIKLAMA</th>
+                                    <th className="p-4 border-b bg-slate-50 select-none text-slate-700 font-bold text-sm text-center">SORULDU?</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
@@ -720,9 +764,18 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                                         const isWarning = item.kalanGun >= 0 && item.kalanGun <= 7;
                                         const displayDate = item.revizeTarih || item.teslimatTarihi;
                                         const isModified = !!item.revizeTarih;
+                                        const rowKey = getRowKey(item);
+                                        const isAsked = askedItems.has(rowKey);
+                                        
+                                        // Calculate dynamic remaining days if modified
+                                        const newRemainingDays = item.revizeTarih ? calculateDaysRemaining(item.revizeTarih) : null;
+                                        const effectiveRemainingDays = newRemainingDays !== null ? newRemainingDays : item.kalanGun;
+                                        
+                                        const effectiveIsDelayed = effectiveRemainingDays < 0;
+                                        const effectiveIsWarning = effectiveRemainingDays >= 0 && effectiveRemainingDays <= 7;
 
                                         return (
-                                            <tr key={`${item.saBelgesi}-${idx}`} className="hover:bg-slate-50 group">
+                                            <tr key={`${item.saBelgesi}-${idx}`} className={`hover:bg-slate-50 group ${isAsked ? 'opacity-50 grayscale' : ''}`}>
                                                 <td className="p-4 font-medium text-slate-800">
                                                     {item.saBelgesi} 
                                                     {item.sasKalemNo && <span className="text-xs text-slate-400 ml-1">/{item.sasKalemNo}</span>}
@@ -751,21 +804,49 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-center">
-                                                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${isDelayed ? 'bg-red-100 text-red-600' : isWarning ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
-                                                        {item.kalanGun}
-                                                    </span>
+                                                <td className="p-4 text-center align-top">
+                                                    {newRemainingDays !== null ? (
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-[10px] text-slate-400 line-through decoration-slate-400 leading-none mb-1">
+                                                                {item.kalanGun}
+                                                            </span>
+                                                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${effectiveIsDelayed ? 'bg-red-100 text-red-600' : effectiveIsWarning ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                                                                {newRemainingDays}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${isDelayed ? 'bg-red-100 text-red-600' : isWarning ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                                                            {item.kalanGun}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="p-4 text-center font-mono">{item.bakiyeMiktari}</td>
                                                 <td className="p-4 text-slate-500 text-xs">{item.olcuBirimi}</td>
                                                 <td className="p-4 text-slate-600">{item.talepEden}</td>
                                                 <td className="p-4 text-slate-600">{item.olusturan}</td>
+                                                <td className="p-4">
+                                                    <textarea
+                                                        className="w-full text-xs border border-slate-200 rounded p-1.5 focus:ring-1 focus:ring-blue-500 outline-none resize-none bg-white transition-colors"
+                                                        rows={1}
+                                                        placeholder="Not..."
+                                                        value={notes[rowKey] || ''}
+                                                        onChange={(e) => handleNoteChange(rowKey, e.target.value)}
+                                                    />
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={isAsked}
+                                                        onChange={() => toggleAsked(rowKey)}
+                                                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                                    />
+                                                </td>
                                             </tr>
                                         );
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan={9} className="p-8 text-center text-slate-400 flex flex-col items-center justify-center">
+                                        <td colSpan={11} className="p-8 text-center text-slate-400 flex flex-col items-center justify-center">
                                             <p>Listelenecek sipariş bulunamadı.</p>
                                         </td>
                                     </tr>

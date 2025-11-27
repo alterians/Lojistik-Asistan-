@@ -1,17 +1,22 @@
-
 import React, { useState, useEffect } from 'react';
-import { AppState, SapOrderItem, VendorSummary, TabType } from './types';
-import FileUpload from './components/FileUpload';
+import { AppState, SapOrderItem, VendorSummary, TabType, ComparisonReportData } from './types';
+import { FileUpload } from './components/FileUpload';
 import Dashboard from './components/Dashboard';
 import EmailGenerator from './components/EmailGenerator';
+import ComparisonReport from './components/ComparisonReport';
+import { compareDatasets } from './utils/comparison';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.UPLOAD);
   const [data, setData] = useState<SapOrderItem[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<VendorSummary | null>(null);
   const [processedVendorIds, setProcessedVendorIds] = useState<Set<string>>(new Set());
+  const [askedVendorIds, setAskedVendorIds] = useState<Set<string>>(new Set()); // New state for "Asked"
   const [initialTab, setInitialTab] = useState<TabType>('email');
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
+  
+  // Comparison Data
+  const [comparisonResult, setComparisonResult] = useState<ComparisonReportData | null>(null);
 
   useEffect(() => {
     // Check for API Key on mount
@@ -23,8 +28,16 @@ const App: React.FC = () => {
   const handleDataLoaded = (loadedData: SapOrderItem[]) => {
     setData(loadedData);
     setAppState(AppState.DASHBOARD);
-    // Reset processed list on new file upload
     setProcessedVendorIds(new Set());
+    setAskedVendorIds(new Set());
+  };
+  
+  const handleCompareLoaded = (oldData: SapOrderItem[], newData: SapOrderItem[]) => {
+      const report = compareDatasets(oldData, newData);
+      setComparisonResult(report);
+      // We can also set the current data to the new data if user wants to switch context later
+      setData(newData); 
+      setAppState(AppState.COMPARISON);
   };
 
   const handleSelectVendor = (vendor: VendorSummary, tab: TabType = 'orders') => {
@@ -40,11 +53,24 @@ const App: React.FC = () => {
 
   const handleBackToUpload = () => {
     setData([]);
+    setComparisonResult(null);
     setAppState(AppState.UPLOAD);
   };
 
   const handleToggleProcessed = (vendorId: string) => {
     setProcessedVendorIds(prev => {
+      const next = new Set(prev);
+      if (next.has(vendorId)) {
+        next.delete(vendorId);
+      } else {
+        next.add(vendorId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleAsked = (vendorId: string) => {
+    setAskedVendorIds(prev => {
       const next = new Set(prev);
       if (next.has(vendorId)) {
         next.delete(vendorId);
@@ -69,17 +95,14 @@ const App: React.FC = () => {
     setData(prevData => prevData.map(item => {
         // Match by PO and Item Number (fallback to PO+Material if ItemNo is missing, though less accurate)
         const isMatch = (item.saBelgesi === saBelgesi) && 
-                        (item.sasKalemNo === sasKalemNo || (!sasKalemNo && item.malzeme === sasKalemNo)); // Fallback logic handled in call site usually, here strict
+                        (item.sasKalemNo === sasKalemNo || (!sasKalemNo && item.malzeme === sasKalemNo)); 
         
         if (item.saBelgesi === saBelgesi && (item.sasKalemNo === sasKalemNo || !sasKalemNo)) {
-             // For simplicity, we just update the 'revizeTarih'.
-             // In a real app we might recalculate 'kalanGun', but keeping it simple for now.
              return { ...item, revizeTarih: newDate };
         }
         return item;
     }));
     
-    // Also update the selected vendor object so the UI reflects changes immediately without full reload logic
     if (selectedVendor) {
         setSelectedVendor(prev => {
             if (!prev) return null;
@@ -126,7 +149,7 @@ const App: React.FC = () => {
             <h1 className="text-xl font-semibold tracking-tight">LojistikAsistanı <span className="text-blue-400 font-light">AI</span></h1>
           </div>
           
-          {appState !== AppState.UPLOAD && (
+          {appState === AppState.DASHBOARD && (
             <div className="flex items-center gap-4 text-sm text-slate-400">
               <div>{data.length} Sipariş Yüklendi</div>
               {processedVendorIds.size > 0 && (
@@ -142,14 +165,19 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 h-[calc(100vh-4rem)]">
         {appState === AppState.UPLOAD && (
-          <FileUpload onDataLoaded={handleDataLoaded} />
+          <FileUpload 
+            onDataLoaded={handleDataLoaded} 
+            onCompareLoaded={handleCompareLoaded}
+          />
         )}
 
         {appState === AppState.DASHBOARD && (
           <Dashboard 
             data={data} 
             processedVendorIds={processedVendorIds}
+            askedVendorIds={askedVendorIds}
             onToggleProcessed={handleToggleProcessed}
+            onToggleAsked={handleToggleAsked}
             onSelectVendor={handleSelectVendor} 
             onBack={handleBackToUpload}
           />
@@ -163,6 +191,13 @@ const App: React.FC = () => {
             onMarkAsProcessed={() => handleMarkAsProcessedAndExit(selectedVendor.vendorId)}
             onUpdateItem={handleUpdateItem}
           />
+        )}
+
+        {appState === AppState.COMPARISON && comparisonResult && (
+            <ComparisonReport 
+                report={comparisonResult}
+                onBack={handleBackToUpload}
+            />
         )}
       </main>
     </div>

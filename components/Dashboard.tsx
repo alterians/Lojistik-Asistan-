@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { SapOrderItem, VendorSummary, TabType } from '../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -6,7 +5,9 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 interface DashboardProps {
   data: SapOrderItem[];
   processedVendorIds: Set<string>;
+  askedVendorIds: Set<string>;
   onToggleProcessed: (vendorId: string) => void;
+  onToggleAsked: (vendorId: string) => void;
   onSelectVendor: (vendor: VendorSummary, tab: TabType) => void;
   onBack: () => void;
 }
@@ -14,7 +15,9 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ 
   data, 
   processedVendorIds, 
+  askedVendorIds,
   onToggleProcessed, 
+  onToggleAsked,
   onSelectVendor, 
   onBack 
 }) => {
@@ -187,30 +190,23 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 sticky top-0 z-10">
                     <tr>
-                      <th className="p-4 w-16 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Durum</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tedarikçi</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Sipariş</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Durum</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">İşlem</th>
+                      <th className="p-4 w-16 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">SORULDU?</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredVendors.map((vendor) => {
                       const isProcessed = processedVendorIds.has(vendor.vendorId);
+                      const isAsked = askedVendorIds.has(vendor.vendorId);
+                      
                       return (
                         <tr 
                             key={vendor.vendorId} 
-                            className={`transition-colors group ${isProcessed ? 'bg-green-50/60' : 'hover:bg-slate-50'}`}
+                            className={`transition-colors group ${isProcessed ? 'bg-green-50/40' : isAsked ? 'opacity-50 grayscale' : 'hover:bg-slate-50'}`}
                         >
-                          <td className="p-4 text-center">
-                             <input 
-                                type="checkbox" 
-                                checked={isProcessed}
-                                onChange={() => onToggleProcessed(vendor.vendorId)}
-                                className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                                title="Bildiri Yapıldı Olarak İşaretle"
-                             />
-                          </td>
                           <td 
                             className="p-4 cursor-pointer" 
                             onClick={() => onSelectVendor(vendor, 'orders')}
@@ -252,7 +248,27 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 >
                                     E-posta
                                 </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onToggleProcessed(vendor.vendorId); }}
+                                    title={isProcessed ? "Tamamlandı işlemini geri al" : "Tamamlandı olarak işaretle"}
+                                    className={`p-2 rounded-lg border transition flex items-center justify-center w-10 ${
+                                        isProcessed 
+                                        ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' 
+                                        : 'bg-white text-slate-300 border-slate-200 hover:text-green-600 hover:border-green-300'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                </button>
                             </div>
+                          </td>
+                          <td className="p-4 text-center">
+                             <input 
+                                type="checkbox" 
+                                checked={isAsked}
+                                onChange={() => onToggleAsked(vendor.vendorId)}
+                                className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                title="Termin Soruldu (Listeden silinmez, sadece işaretlenir)"
+                             />
                           </td>
                         </tr>
                       );
