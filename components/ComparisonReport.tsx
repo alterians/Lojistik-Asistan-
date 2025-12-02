@@ -9,6 +9,7 @@ import {
 interface ComparisonReportProps {
   report: ComparisonReportData;
   onBack: () => void;
+  isDarkMode?: boolean;
 }
 
 // Helper interface for flattened material view
@@ -98,55 +99,55 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
     }, [onClose]);
 
     return (
-        <div ref={dropdownRef} className="absolute top-full left-0 mt-1 w-64 bg-white border border-slate-300 rounded-lg shadow-xl z-50 text-sm font-normal text-slate-700 flex flex-col">
-            <div className="p-2 border-b border-slate-100 flex flex-col gap-1">
-                <button onClick={() => { onSort('asc'); onClose(); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 rounded text-left w-full">
+        <div ref={dropdownRef} className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg shadow-xl z-50 text-sm font-normal text-slate-700 dark:text-slate-200 flex flex-col">
+            <div className="p-2 border-b border-slate-100 dark:border-slate-700 flex flex-col gap-1">
+                <button onClick={() => { onSort('asc'); onClose(); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-left w-full">
                     <span className="text-slate-400">↓</span> A'dan Z'ye Sırala
                 </button>
-                <button onClick={() => { onSort('desc'); onClose(); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 rounded text-left w-full">
+                <button onClick={() => { onSort('desc'); onClose(); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-left w-full">
                     <span className="text-slate-400">↑</span> Z'den A'ya Sırala
                 </button>
             </div>
-            <div className="p-2 border-b border-slate-100">
+            <div className="p-2 border-b border-slate-100 dark:border-slate-700">
                 <input 
                     type="text" 
                     placeholder="Ara" 
-                    className="w-full border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500"
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded px-2 py-1 focus:outline-none focus:border-blue-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                 />
             </div>
             <div className="max-h-60 overflow-y-auto p-2 flex flex-col gap-1">
-                <label className="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-50 rounded cursor-pointer">
+                <label className="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded cursor-pointer">
                     <input 
                         type="checkbox" 
                         checked={isAllVisibleSelected}
                         onChange={handleToggleAll}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 dark:bg-slate-700"
                     />
-                    <span className="font-medium text-slate-800">(Tümünü Seç)</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">(Tümünü Seç)</span>
                 </label>
                 {filteredValues.map(val => (
-                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-50 rounded cursor-pointer">
+                    <label key={val} className="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded cursor-pointer">
                         <input 
                             type="checkbox" 
                             checked={tempSelected.has(val)}
                             onChange={() => handleToggleItem(val)}
-                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 dark:bg-slate-700"
                         />
                         <span className="truncate" title={val}>{val || "(Boş)"}</span>
                     </label>
                 ))}
             </div>
-            <div className="p-2 border-t border-slate-100 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
-                 <button onClick={onClose} className="px-3 py-1 bg-white border border-slate-300 rounded hover:bg-slate-50">İptal</button>
+            <div className="p-2 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg">
+                 <button onClick={onClose} className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">İptal</button>
                  <button onClick={handleApply} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Tamam</button>
             </div>
         </div>
     );
 };
 
-const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) => {
+const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack, isDarkMode }) => {
   const [expandedVendor, setExpandedVendor] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'vendor' | 'material' | 'analysis'>('analysis');
@@ -181,9 +182,9 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
 
   const getBadge = (type: string) => {
     switch (type) {
-        case 'added': return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap">YENİ</span>;
-        case 'removed': return <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap">TESLİM/İPTAL</span>;
-        case 'updated': return <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap">GÜNCELLENDİ</span>;
+        case 'added': return <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap">YENİ</span>;
+        case 'removed': return <span className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap">TESLİM/İPTAL</span>;
+        case 'updated': return <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap">GÜNCELLENDİ</span>;
         default: return null;
     }
   };
@@ -256,7 +257,6 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
         return Object.entries(columnFilters).every(([key, allowedValues]) => {
             if (!allowedValues) return true;
             const val = getRowValue(item, key);
-            // Explicit cast to avoid "Property includes does not exist on type unknown" error
             return (allowedValues as string[]).includes(val);
         });
     });
@@ -304,17 +304,17 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
       const isSorted = sortConfig?.key === columnKey;
       
       return (
-        <div className={`${widthClass} font-bold text-slate-700 text-sm flex items-center justify-between group relative`}>
+        <div className={`${widthClass} font-bold text-slate-700 dark:text-slate-300 text-sm flex items-center justify-between group relative`}>
             <div 
-                className="flex items-center gap-1 cursor-pointer hover:text-blue-600 select-none"
+                className="flex items-center gap-1 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 select-none"
                 onClick={() => setSortConfig({ key: columnKey, direction: sortConfig?.direction === 'asc' ? 'desc' : 'asc' })}
             >
                 {label}
-                {isSorted && <span className="text-blue-600 text-xs">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                {isSorted && <span className="text-blue-600 dark:text-blue-400 text-xs">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
             </div>
             <button 
                 onClick={(e) => { e.stopPropagation(); setActiveDropdown(activeDropdown === columnKey ? null : columnKey); }}
-                className={`p-1 rounded hover:bg-slate-200 transition-colors ${isFiltered ? 'text-blue-600' : 'text-slate-300 group-hover:text-slate-500'}`}
+                className={`p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${isFiltered ? 'text-blue-600 dark:text-blue-400' : 'text-slate-300 dark:text-slate-600 group-hover:text-slate-500 dark:group-hover:text-slate-400'}`}
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
             </button>
@@ -338,13 +338,17 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
       );
   };
 
+  const chartTickColor = isDarkMode ? '#94a3b8' : '#64748b';
+  const chartGridStroke = isDarkMode ? '#334155' : '#f1f5f9';
+  const chartTooltipStyle = isDarkMode ? {backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9'} : {};
+
   return (
-    <div className="h-full flex flex-col bg-slate-50">
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors">
         {/* Header Stats */}
         <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <button onClick={onBack} className="text-slate-400 hover:text-slate-600 transition">
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <button onClick={onBack} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                     </button>
                     Rapor Karşılaştırma Sonucu
@@ -366,47 +370,47 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
             </div>
 
             {/* Toolbar */}
-            <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex flex-col lg:flex-row gap-4 justify-between items-center">
+            <div className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col lg:flex-row gap-4 justify-between items-center">
                 
                 {/* Search (Hidden in Analysis Mode) */}
                 <div className={`relative w-full lg:w-96 transition-opacity ${viewMode === 'analysis' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                     <input 
                         type="text" 
                         placeholder="Tedarikçi, Malzeme veya SAS no ara..." 
-                        className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                        className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-white transition"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
-                    <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <svg className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 </div>
 
                 {/* Material Filters (Only visible in Material View) */}
                 {viewMode === 'material' && (
-                    <div className="flex bg-slate-100 p-1 rounded-lg">
-                        <button onClick={() => setMaterialFilter('all')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${materialFilter === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Tümü</button>
-                        <button onClick={() => setMaterialFilter('added')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${materialFilter === 'added' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500'}`}>Yeni</button>
-                        <button onClick={() => setMaterialFilter('removed')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${materialFilter === 'removed' ? 'bg-white text-slate-600 shadow-sm' : 'text-slate-500'}`}>Kapanan</button>
-                        <button onClick={() => setMaterialFilter('updated')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${materialFilter === 'updated' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Değişen</button>
+                    <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
+                        <button onClick={() => setMaterialFilter('all')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${materialFilter === 'all' ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>Tümü</button>
+                        <button onClick={() => setMaterialFilter('added')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${materialFilter === 'added' ? 'bg-white dark:bg-slate-600 text-green-600 dark:text-green-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>Yeni</button>
+                        <button onClick={() => setMaterialFilter('removed')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${materialFilter === 'removed' ? 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>Kapanan</button>
+                        <button onClick={() => setMaterialFilter('updated')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${materialFilter === 'updated' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>Değişen</button>
                     </div>
                 )}
 
                 {/* View Switcher */}
-                <div className="flex bg-slate-100 p-1 rounded-lg shrink-0">
+                <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-lg shrink-0">
                     <button 
                         onClick={() => setViewMode('analysis')}
-                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'analysis' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'analysis' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                     >
                         Özet Analiz
                     </button>
                     <button 
                         onClick={() => setViewMode('vendor')}
-                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'vendor' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'vendor' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                     >
                         Tedarikçi
                     </button>
                     <button 
                         onClick={() => setViewMode('material')}
-                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'material' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'material' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                     >
                         Malzeme
                     </button>
@@ -415,15 +419,15 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
         </div>
 
         {/* Content Area */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden flex-1 min-h-0">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden flex-1 min-h-0">
             
             {/* ANALYSIS VIEW */}
             {viewMode === 'analysis' && (
-                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-900/50">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         {/* Change Distribution Pie */}
-                        <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm h-80 flex flex-col">
-                            <h3 className="font-bold text-slate-800 mb-4">Değişim Dağılımı</h3>
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm h-80 flex flex-col">
+                            <h3 className="font-bold text-slate-800 dark:text-white mb-4">Değişim Dağılımı</h3>
                             <div className="flex-1 min-h-0">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
@@ -441,7 +445,7 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
                                                 <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
                                             ))}
                                         </Pie>
-                                        <Tooltip />
+                                        <Tooltip contentStyle={chartTooltipStyle} />
                                         <Legend verticalAlign="bottom" height={36} />
                                     </PieChart>
                                 </ResponsiveContainer>
@@ -450,19 +454,19 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
 
                         {/* Summary Cards */}
                         <div className="grid grid-cols-2 gap-4 h-80">
-                            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-center items-center text-center">
-                                <h4 className="text-slate-400 text-xs font-bold uppercase mb-2">Toplam Hareket</h4>
-                                <p className="text-4xl font-extrabold text-slate-800">
+                            <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-center items-center text-center">
+                                <h4 className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase mb-2">Toplam Hareket</h4>
+                                <p className="text-4xl font-extrabold text-slate-800 dark:text-white">
                                     {report.totalAdded + report.totalRemoved + report.totalUpdated}
                                 </p>
-                                <p className="text-xs text-slate-500 mt-2">İşlem Gören Satır</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">İşlem Gören Satır</p>
                             </div>
-                            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-center items-center text-center">
-                                <h4 className="text-slate-400 text-xs font-bold uppercase mb-2">Etkilenen Tedarikçi</h4>
-                                <p className="text-4xl font-extrabold text-blue-600">
+                            <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-center items-center text-center">
+                                <h4 className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase mb-2">Etkilenen Tedarikçi</h4>
+                                <p className="text-4xl font-extrabold text-blue-600 dark:text-blue-400">
                                     {report.vendors.length}
                                 </p>
-                                <p className="text-xs text-slate-500 mt-2">Firmada Değişim Var</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Firmada Değişim Var</p>
                             </div>
                             <div className="col-span-2 bg-gradient-to-r from-blue-600 to-blue-500 p-5 rounded-xl border border-blue-600 shadow-md flex items-center justify-between text-white">
                                 <div>
@@ -478,9 +482,9 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
                     </div>
 
                     {/* Top Vendors Bar Chart */}
-                    <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm h-96 flex flex-col">
-                        <h3 className="font-bold text-slate-800 mb-2">En Çok Hareket Gören Tedarikçiler (Top 10)</h3>
-                        <p className="text-sm text-slate-400 mb-4">Yeni eklenen, kapanan ve tarihi değişen siparişlerin toplamı.</p>
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm h-96 flex flex-col">
+                        <h3 className="font-bold text-slate-800 dark:text-white mb-2">En Çok Hareket Gören Tedarikçiler (Top 10)</h3>
+                        <p className="text-sm text-slate-400 dark:text-slate-500 mb-4">Yeni eklenen, kapanan ve tarihi değişen siparişlerin toplamı.</p>
                         <div className="flex-1 min-h-0">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart
@@ -489,10 +493,10 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
                                     margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
                                     barSize={20}
                                 >
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={chartGridStroke} />
                                     <XAxis type="number" />
-                                    <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
-                                    <Tooltip cursor={{fill: '#f8fafc'}} />
+                                    <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11, fill: chartTickColor}} />
+                                    <Tooltip cursor={{fill: isDarkMode ? '#334155' : '#f8fafc'}} contentStyle={chartTooltipStyle} />
                                     <Legend />
                                     <Bar dataKey="Yeni" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
                                     <Bar dataKey="Degisen" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
@@ -507,37 +511,37 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
             {/* VENDOR VIEW */}
             {viewMode === 'vendor' && (
                 <>
-                    <div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-slate-700 text-sm grid grid-cols-12 gap-4 sticky top-0 z-10">
+                    <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-300 text-sm grid grid-cols-12 gap-4 sticky top-0 z-10">
                         <div className="col-span-5">Tedarikçi</div>
-                        <div className="col-span-2 text-center text-green-600">Yeni</div>
-                        <div className="col-span-2 text-center text-slate-600">Kapanan</div>
-                        <div className="col-span-2 text-center text-blue-600">Değişen</div>
+                        <div className="col-span-2 text-center text-green-600 dark:text-green-400">Yeni</div>
+                        <div className="col-span-2 text-center text-slate-600 dark:text-slate-400">Kapanan</div>
+                        <div className="col-span-2 text-center text-blue-600 dark:text-blue-400">Değişen</div>
                         <div className="col-span-1"></div>
                     </div>
                     
                     <div className="flex-1 overflow-y-auto">
                         {filteredVendors.length > 0 ? filteredVendors.map(vendor => (
-                            <div key={vendor.vendorId} className="border-b border-slate-50 last:border-0">
+                            <div key={vendor.vendorId} className="border-b border-slate-50 dark:border-slate-700 last:border-0">
                                 <div 
                                     onClick={() => toggleVendor(vendor.vendorId)}
-                                    className={`p-4 grid grid-cols-12 gap-4 items-center cursor-pointer hover:bg-slate-50 transition ${expandedVendor === vendor.vendorId ? 'bg-slate-50' : ''}`}
+                                    className={`p-4 grid grid-cols-12 gap-4 items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition ${expandedVendor === vendor.vendorId ? 'bg-slate-50 dark:bg-slate-700/50' : ''}`}
                                 >
-                                    <div className="col-span-5 font-semibold text-slate-800">
+                                    <div className="col-span-5 font-semibold text-slate-800 dark:text-slate-200">
                                         {vendor.vendorName}
-                                        <span className="text-xs text-slate-400 font-normal ml-2">{vendor.vendorId}</span>
+                                        <span className="text-xs text-slate-400 dark:text-slate-500 font-normal ml-2">{vendor.vendorId}</span>
                                     </div>
-                                    <div className="col-span-2 text-center font-bold text-green-600">{vendor.addedCount > 0 ? `+${vendor.addedCount}` : '-'}</div>
-                                    <div className="col-span-2 text-center font-bold text-slate-500">{vendor.removedCount > 0 ? `-${vendor.removedCount}` : '-'}</div>
-                                    <div className="col-span-2 text-center font-bold text-blue-600">{vendor.updatedCount > 0 ? vendor.updatedCount : '-'}</div>
-                                    <div className="col-span-1 text-right text-slate-400">
+                                    <div className="col-span-2 text-center font-bold text-green-600 dark:text-green-400">{vendor.addedCount > 0 ? `+${vendor.addedCount}` : '-'}</div>
+                                    <div className="col-span-2 text-center font-bold text-slate-500 dark:text-slate-400">{vendor.removedCount > 0 ? `-${vendor.removedCount}` : '-'}</div>
+                                    <div className="col-span-2 text-center font-bold text-blue-600 dark:text-blue-400">{vendor.updatedCount > 0 ? vendor.updatedCount : '-'}</div>
+                                    <div className="col-span-1 text-right text-slate-400 dark:text-slate-500">
                                         <svg className={`w-5 h-5 transform transition ${expandedVendor === vendor.vendorId ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                                     </div>
                                 </div>
 
                                 {expandedVendor === vendor.vendorId && (
-                                    <div className="bg-slate-50 p-4 pl-8 border-t border-slate-100 animate-in fade-in duration-200">
-                                        <table className="w-full text-sm text-left">
-                                            <thead className="text-xs text-slate-500 uppercase border-b border-slate-200">
+                                    <div className="bg-slate-50 dark:bg-slate-900/30 p-4 pl-8 border-t border-slate-100 dark:border-slate-700 animate-in fade-in duration-200">
+                                        <table className="w-full text-sm text-left text-slate-700 dark:text-slate-300">
+                                            <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-600">
                                                 <tr>
                                                     <th className="pb-2">Durum</th>
                                                     <th className="pb-2">SA Belgesi</th>
@@ -547,32 +551,32 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
                                                     <th className="pb-2 w-10">Soruldu?</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-200">
+                                            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                                                 {vendor.items.map((diff, i) => {
                                                     const rowId = `${vendor.vendorId}-${diff.item.saBelgesi}-${diff.item.malzeme}`;
                                                     const isAsked = askedItems.has(rowId);
                                                     return (
                                                     <tr key={i} className={isAsked ? 'opacity-50 grayscale transition-all' : 'transition-all'}>
                                                         <td className="py-2">{getBadge(diff.type)}</td>
-                                                        <td className="py-2 font-mono text-slate-700">{diff.item.saBelgesi} {diff.item.sasKalemNo && `/${diff.item.sasKalemNo}`}</td>
+                                                        <td className="py-2 font-mono text-slate-700 dark:text-slate-300">{diff.item.saBelgesi} {diff.item.sasKalemNo && `/${diff.item.sasKalemNo}`}</td>
                                                         <td className="py-2">
-                                                            <div className="font-medium text-slate-800">{diff.item.malzeme}</div>
-                                                            <div className="text-xs text-slate-500 truncate max-w-xs">{diff.item.kisaMetin}</div>
+                                                            <div className="font-medium text-slate-800 dark:text-slate-200">{diff.item.malzeme}</div>
+                                                            <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs">{diff.item.kisaMetin}</div>
                                                         </td>
                                                         <td className="py-2 text-xs">
                                                             {diff.type === 'updated' && (
                                                                 <div className="flex items-center gap-2">
                                                                     <span className="text-slate-400 line-through">{diff.oldDate}</span>
                                                                     <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-                                                                    <span className="text-blue-600 font-bold">{diff.newDate}</span>
+                                                                    <span className="text-blue-600 dark:text-blue-400 font-bold">{diff.newDate}</span>
                                                                 </div>
                                                             )}
-                                                            {diff.type === 'added' && <span className="text-green-600">Yeni Sipariş</span>}
-                                                            {diff.type === 'removed' && <span className="text-slate-500">Listeden Çıktı</span>}
+                                                            {diff.type === 'added' && <span className="text-green-600 dark:text-green-400">Yeni Sipariş</span>}
+                                                            {diff.type === 'removed' && <span className="text-slate-500 dark:text-slate-400">Listeden Çıktı</span>}
                                                         </td>
                                                         <td className="py-2">
                                                             <textarea
-                                                                className="w-full text-xs border border-slate-200 rounded p-2 focus:ring-1 focus:ring-blue-500 outline-none resize-none bg-white transition-colors"
+                                                                className="w-full text-xs border border-slate-200 dark:border-slate-600 rounded p-2 focus:ring-1 focus:ring-blue-500 outline-none resize-none bg-white dark:bg-slate-800 dark:text-slate-200 transition-colors"
                                                                 rows={1}
                                                                 placeholder="Not..."
                                                                 value={notes[rowId] || ''}
@@ -585,7 +589,7 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
                                                                 type="checkbox" 
                                                                 checked={isAsked}
                                                                 onChange={() => toggleAsked(rowId)}
-                                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                                                className="w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-600 rounded focus:ring-blue-500 cursor-pointer dark:bg-slate-700"
                                                             />
                                                         </td>
                                                     </tr>
@@ -596,7 +600,7 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
                                 )}
                             </div>
                         )) : (
-                            <div className="p-8 text-center text-slate-400">Aranan kriterlere uygun sonuç bulunamadı.</div>
+                            <div className="p-8 text-center text-slate-400 dark:text-slate-500">Aranan kriterlere uygun sonuç bulunamadı.</div>
                         )}
                     </div>
                 </>
@@ -606,47 +610,47 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
             {viewMode === 'material' && (
                 <div className="flex-1 flex flex-col min-h-0">
                      <div className="min-w-[1024px]">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-slate-700 text-sm grid grid-cols-12 gap-4 sticky top-0 z-10">
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-300 text-sm grid grid-cols-12 gap-4 sticky top-0 z-10">
                             <RenderHeader label="Durum" columnKey="type" widthClass="col-span-1" />
                             <RenderHeader label="Tedarikçi" columnKey="vendorName" widthClass="col-span-2" />
                             <RenderHeader label="SA Belgesi" columnKey="saBelgesi" widthClass="col-span-1" />
                             <RenderHeader label="Malzeme" columnKey="malzeme" widthClass="col-span-2" />
                             <RenderHeader label="Değişim Detayı" columnKey="newDate" widthClass="col-span-2" />
-                            <div className="col-span-3 font-bold text-slate-700 text-sm pl-2">Açıklama</div>
-                            <div className="col-span-1 font-bold text-slate-700 text-sm text-center">Soruldu?</div>
+                            <div className="col-span-3 font-bold text-slate-700 dark:text-slate-300 text-sm pl-2">Açıklama</div>
+                            <div className="col-span-1 font-bold text-slate-700 dark:text-slate-300 text-sm text-center">Soruldu?</div>
                         </div>
                      </div>
-                    <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                    <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
                          {processedMaterials.length > 0 ? processedMaterials.map((diff, i) => {
                              const rowId = `${diff.vendorId}-${diff.item.saBelgesi}-${diff.item.malzeme}`;
                              const isAsked = askedItems.has(rowId);
                              return (
-                                <div key={i} className={`min-w-[1024px] p-4 grid grid-cols-12 gap-4 items-start hover:bg-slate-50 text-sm group ${isAsked ? 'opacity-50 grayscale' : ''}`}>
+                                <div key={i} className={`min-w-[1024px] p-4 grid grid-cols-12 gap-4 items-start hover:bg-slate-50 dark:hover:bg-slate-800/50 text-sm group ${isAsked ? 'opacity-50 grayscale' : ''}`}>
                                     <div className="col-span-1">{getBadge(diff.type)}</div>
                                     <div className="col-span-2">
-                                        <div className="font-semibold text-slate-800 truncate" title={diff.vendorName}>{diff.vendorName}</div>
-                                        <div className="text-xs text-slate-400">{diff.vendorId}</div>
+                                        <div className="font-semibold text-slate-800 dark:text-slate-200 truncate" title={diff.vendorName}>{diff.vendorName}</div>
+                                        <div className="text-xs text-slate-400 dark:text-slate-500">{diff.vendorId}</div>
                                     </div>
-                                    <div className="col-span-1 font-mono text-slate-600 text-xs break-all">
+                                    <div className="col-span-1 font-mono text-slate-600 dark:text-slate-400 text-xs break-all">
                                         {diff.item.saBelgesi}
                                     </div>
                                     <div className="col-span-2">
-                                        <div className="font-medium text-slate-800 break-words">{diff.item.malzeme}</div>
-                                        <div className="text-xs text-slate-500 truncate mt-0.5">{diff.item.kisaMetin}</div>
+                                        <div className="font-medium text-slate-800 dark:text-slate-200 break-words">{diff.item.malzeme}</div>
+                                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{diff.item.kisaMetin}</div>
                                     </div>
                                     <div className="col-span-2 text-xs">
                                         {diff.type === 'updated' && (
                                             <div className="flex flex-col">
                                                 <span className="text-slate-400 line-through text-[10px]">{diff.oldDate}</span>
-                                                <span className="text-blue-600 font-bold">{diff.newDate}</span>
+                                                <span className="text-blue-600 dark:text-blue-400 font-bold">{diff.newDate}</span>
                                             </div>
                                         )}
-                                        {diff.type === 'added' && <span className="text-green-600 block">Listeye eklendi</span>}
-                                        {diff.type === 'removed' && <span className="text-slate-500 block">Listeden düştü</span>}
+                                        {diff.type === 'added' && <span className="text-green-600 dark:text-green-400 block">Listeye eklendi</span>}
+                                        {diff.type === 'removed' && <span className="text-slate-500 dark:text-slate-400 block">Listeden düştü</span>}
                                     </div>
                                     <div className="col-span-3">
                                         <textarea
-                                            className="w-full text-xs border border-slate-200 rounded p-2 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none bg-white transition-colors"
+                                            className="w-full text-xs border border-slate-200 dark:border-slate-600 rounded p-2 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none bg-white dark:bg-slate-800 dark:text-slate-200 transition-colors"
                                             rows={2}
                                             placeholder="Not ekle..."
                                             value={notes[rowId] || ''}
@@ -658,14 +662,14 @@ const ComparisonReport: React.FC<ComparisonReportProps> = ({ report, onBack }) =
                                             type="checkbox" 
                                             checked={isAsked}
                                             onChange={() => toggleAsked(rowId)}
-                                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                            className="w-5 h-5 text-blue-600 border-gray-300 dark:border-slate-600 rounded focus:ring-blue-500 cursor-pointer dark:bg-slate-700"
                                             title="Termin Soruldu Olarak İşaretle"
                                         />
                                     </div>
                                 </div>
                              );
                          }) : (
-                            <div className="p-8 text-center text-slate-400">Aranan kriterlere uygun malzeme bulunamadı.</div>
+                            <div className="p-8 text-center text-slate-400 dark:text-slate-500">Aranan kriterlere uygun malzeme bulunamadı.</div>
                          )}
                     </div>
                 </div>

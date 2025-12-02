@@ -142,7 +142,8 @@ export const parseExcelData = async (file: File): Promise<SapOrderItem[]> => {
             olcuBirimi: findHeaderIndex(headers, ['Olcu Birimi', 'Ölçü Birimi', 'Birim', 'Olcu']),
             // New Columns
             talepEden: findHeaderIndex(headers, ['Talep Eden', 'Talep']),
-            olusturan: findHeaderIndex(headers, ['Olusturan', 'Oluşturan', 'Yaratan', 'Kaydeden'])
+            olusturan: findHeaderIndex(headers, ['Olusturan', 'Oluşturan', 'Yaratan', 'Kaydeden']),
+            aciklama: findHeaderIndex(headers, ['Aciklama', 'Açıklama', 'Not', 'Notlar'])
         };
 
         const mappedData: SapOrderItem[] = rows.map((row: any) => {
@@ -170,8 +171,12 @@ export const parseExcelData = async (file: File): Promise<SapOrderItem[]> => {
 
           // Determine Status
           let status: 'critical' | 'warning' | 'ok' = 'ok';
-          if (kalanGun < 0) status = 'critical';
-          else if (kalanGun <= 7) status = 'warning';
+          if (kalanGun < 0) {
+            status = 'critical';
+          } else if (kalanGun <= 10) {
+            // Changed from 7 to 10 days for "Yaklaşan" warning
+            status = 'warning';
+          }
 
           // Vendor identification
           let saticiAdi = String(getVal(idx.saticiAdi) || '');
@@ -204,7 +209,8 @@ export const parseExcelData = async (file: File): Promise<SapOrderItem[]> => {
             status,
             // New columns
             talepEden: String(getVal(idx.talepEden) || ''),
-            olusturan: String(getVal(idx.olusturan) || '')
+            olusturan: String(getVal(idx.olusturan) || ''),
+            aciklama: String(getVal(idx.aciklama) || '')
           };
         }).filter(item => {
             // Filter out empty or invalid rows

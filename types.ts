@@ -15,6 +15,7 @@ export interface SapOrderItem {
   // New fields for Item tracking and Updates
   sasKalemNo?: string;    // SAS Kalem No (Item Number)
   revizeTarih?: string;   // Manually updated date
+  aciklama?: string;      // User notes/remarks
   
   // New fields requested
   talepEden?: string;     // Talep Eden
@@ -29,6 +30,7 @@ export interface VendorSummary {
   vendorName: string;
   itemCount: number;
   criticalCount: number;
+  warningCount: number; // Added for Approaching deadlines
   items: SapOrderItem[];
 }
 
