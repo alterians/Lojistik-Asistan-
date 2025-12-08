@@ -14,6 +14,7 @@ interface EmailGeneratorProps {
   onUpdateItem: (saBelgesi: string, sasKalemNo: string, newDate: string) => void;
   onUpdateNote: (saBelgesi: string, sasKalemNo: string, note: string) => void;
   isDarkMode?: boolean;
+  warningThreshold?: number; // New Prop
 }
 
 type SortKey = keyof SapOrderItem;
@@ -67,6 +68,7 @@ interface FilterDropdownProps<T> {
     onClose: () => void;
     onSort: (direction: SortDirection) => void;
     columnTitle: string;
+    align?: 'left' | 'right';
 }
 
 const FilterDropdown = <T,>({
@@ -76,7 +78,8 @@ const FilterDropdown = <T,>({
     onApply,
     onClose,
     onSort,
-    columnTitle
+    columnTitle,
+    align = 'left'
 }: FilterDropdownProps<T>) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [tempSelected, setTempSelected] = useState<Set<string>>(() => {
@@ -139,7 +142,10 @@ const FilterDropdown = <T,>({
     }, [onClose]);
 
     return (
-        <div ref={dropdownRef} className="absolute top-full right-0 mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg shadow-xl z-50 text-sm font-normal text-slate-700 dark:text-slate-200 flex flex-col">
+        <div 
+            ref={dropdownRef} 
+            className={`absolute top-full mt-1 w-72 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg shadow-xl z-50 text-sm font-normal text-slate-700 dark:text-slate-200 flex flex-col ${align === 'right' ? 'right-0' : 'left-0'}`}
+        >
             <div className="p-2 border-b border-slate-100 dark:border-slate-700 flex flex-col gap-1">
                 <button 
                     onClick={() => { onSort('asc'); onClose(); }}
@@ -436,7 +442,8 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
   onMarkAsProcessed,
   onUpdateItem,
   onUpdateNote,
-  isDarkMode
+  isDarkMode,
+  warningThreshold = 7 // Default Value
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   
@@ -445,6 +452,7 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
   const [emailLoading, setEmailLoading] = useState<boolean>(false);
   const [emailChatHistory, setEmailChatHistory] = useState<ChatMessage[]>([]);
   const [emailInputMessage, setEmailInputMessage] = useState('');
+  const emailPreviewRef = useRef<HTMLDivElement>(null);
   
   // Order Chat State
   const [isOrderChatOpen, setIsOrderChatOpen] = useState(false);
@@ -618,8 +626,28 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
     scrollToBottom();
   }, [emailChatHistory, orderChatHistory, activeTab, isOrderChatOpen]);
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(emailContent);
+  const copyRichText = async () => {
+    if (!emailPreviewRef.current) return;
+
+    try {
+        const content = emailPreviewRef.current;
+        // Basic Clipboard API write
+        const htmlBlob = new Blob([content.innerHTML], { type: 'text/html' });
+        const textBlob = new Blob([content.innerText], { type: 'text/plain' });
+        
+        await navigator.clipboard.write([
+            new ClipboardItem({
+                'text/html': htmlBlob,
+                'text/plain': textBlob,
+            }),
+        ]);
+        alert("E-posta formatı kopyalandı! Outlook veya Gmail'e yapıştırabilirsiniz.");
+    } catch (err) {
+        console.error("Rich Copy Failed", err);
+        // Fallback
+        navigator.clipboard.writeText(emailContent);
+        alert("Zengin metin kopyalanamadı, düz metin kopyalandı.");
+    }
   };
   
   const downloadMarkdown = () => {
@@ -662,12 +690,15 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
     }
     const exportData = filteredAndSortedItems.map(item => {
         const key = getRowKey(item);
+        const newRemainingDays = item.revizeTarih ? calculateDaysRemaining(item.revizeTarih) : null;
+        const effectiveRemainingDays = newRemainingDays !== null ? newRemainingDays : item.kalanGun;
+
         return {
             "SA BELGESİ": item.sasKalemNo ? `${item.saBelgesi} / ${item.sasKalemNo}` : item.saBelgesi,
             "MALZEME": item.malzeme,
             "KISA METİN": item.kisaMetin,
             "TESLİMAT TARİHİ": item.revizeTarih || item.teslimatTarihi || "",
-            "KALAN GÜN": item.kalanGun,
+            "KALAN GÜN": effectiveRemainingDays,
             "BAKİYE": item.bakiyeMiktari,
             "BİRİM": item.olcuBirimi,
             "TALEP EDEN": item.talepEden,
@@ -681,6 +712,39 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
         { wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 12 }
     ];
     ws['!cols'] = wscols;
+
+    // Apply Styles
+    if (ws['!ref']) {
+        const range = window.XLSX.utils.decode_range(ws['!ref']);
+        // "KALAN GÜN" is the 5th column (Index 4) based on exportData keys above.
+        // SA(0), MALZEME(1), KISA(2), TESLIMAT(3), KALAN(4)
+        const colIndex = 4; 
+
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+            const cellAddress = window.XLSX.utils.encode_cell({r: R, c: colIndex});
+            const cell = ws[cellAddress];
+            
+            if (cell && cell.v !== undefined) {
+                const val = Number(cell.v);
+                if (!isNaN(val)) {
+                    if (val < 0) {
+                        // Red background, White text
+                        cell.s = {
+                            fill: { fgColor: { rgb: "DC2626" } }, // Red-600
+                            font: { color: { rgb: "FFFFFF" }, bold: true }
+                        };
+                    } else if (val <= warningThreshold) {
+                        // Yellow background, Black text
+                        cell.s = {
+                            fill: { fgColor: { rgb: "FCD34D" } }, // Amber-300
+                            font: { color: { rgb: "000000" }, bold: true }
+                        };
+                    }
+                }
+            }
+        }
+    }
+
     const wb = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(wb, ws, "Siparis Listesi");
     const safeName = vendor.vendorName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
@@ -781,7 +845,7 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
 
   const modifiedCount = vendor.items.filter(i => i.revizeTarih).length;
 
-  const RenderHeader = ({ label, field }: { label: string, field: SortKey }) => {
+  const RenderHeader = ({ label, field, align = 'left' }: { label: string, field: SortKey, align?: 'left' | 'right' }) => {
       const isFiltered = filters[field] !== undefined;
       return (
           <th className="p-4 border-b bg-slate-50 dark:bg-slate-800 select-none group relative whitespace-nowrap">
@@ -811,6 +875,7 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                       onApply={(vals) => applyFilter(field, vals)}
                       onClose={() => setActiveFilterDropdown(null)}
                       onSort={(dir) => requestSort(field, dir)}
+                      align={align}
                   />
               )}
           </th>
@@ -820,6 +885,79 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
   const chartTickColor = isDarkMode ? '#94a3b8' : '#64748b';
   const chartGridStroke = isDarkMode ? '#334155' : '#f1f5f9';
   const chartTooltipStyle = isDarkMode ? {backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9'} : {};
+
+  // --- Render Email Preview with Custom Table ---
+  const RenderEmailPreview = () => {
+      // Split content by placeholder
+      const parts = emailContent.split('{{SIPARIS_TABLOSU}}');
+      const intro = parts[0] || '';
+      const outro = parts.length > 1 ? parts[1] : '';
+
+      const tableItems = [...vendor.items].sort((a, b) => a.kalanGun - b.kalanGun);
+
+      return (
+          <div 
+            ref={emailPreviewRef} 
+            className="prose prose-slate prose-sm max-w-none dark:prose-invert bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+            style={{fontFamily: 'Arial, sans-serif'}} // Inline font for better email compatibility
+          >
+              {/* Intro Part (Markdown) */}
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{intro}</ReactMarkdown>
+
+              {/* Custom HTML Table */}
+              <div className="my-4 overflow-x-auto">
+                  <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '12px', border: '1px solid #ddd'}}>
+                      <thead>
+                          <tr style={{backgroundColor: '#f3f4f6', borderBottom: '2px solid #ddd'}}>
+                              <th style={{padding: '8px', border: '1px solid #ddd', textAlign: 'left', color: '#1f2937'}}>Sipariş No</th>
+                              <th style={{padding: '8px', border: '1px solid #ddd', textAlign: 'left', color: '#1f2937'}}>Kalem</th>
+                              <th style={{padding: '8px', border: '1px solid #ddd', textAlign: 'left', color: '#1f2937'}}>Malzeme No</th>
+                              <th style={{padding: '8px', border: '1px solid #ddd', textAlign: 'left', color: '#1f2937'}}>Malzeme Tanımı</th>
+                              <th style={{padding: '8px', border: '1px solid #ddd', textAlign: 'left', color: '#1f2937'}}>Miktar</th>
+                              <th style={{padding: '8px', border: '1px solid #ddd', textAlign: 'center', color: '#1f2937'}}>Termin Tarihi</th>
+                              <th style={{padding: '8px', border: '1px solid #ddd', textAlign: 'center', color: '#1f2937'}}>Durum</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {tableItems.map((item, idx) => {
+                              const isDelayed = item.kalanGun < 0;
+                              const isWarning = item.kalanGun >= 0 && item.kalanGun <= warningThreshold;
+                              
+                              let rowBg = '#ffffff';
+                              let rowColor = '#1f2937';
+
+                              if (isDelayed) {
+                                  rowBg = '#ffe2e2'; // Light Red (Red-100/200)
+                                  rowColor = '#991b1b'; // Dark Red (Red-800)
+                              } else if (isWarning) {
+                                  rowBg = '#fef9c3'; // Light Yellow (Yellow-100)
+                                  rowColor = '#854d0e'; // Dark Yellow/Brown (Yellow-800)
+                              }
+
+                              // Inline styles are crucial for copy-paste to email clients
+                              return (
+                                  <tr key={idx} style={{backgroundColor: rowBg, color: rowColor, borderBottom: '1px solid #ddd'}}>
+                                      <td style={{padding: '8px', border: '1px solid #ddd', color: rowColor}}>{item.saBelgesi}</td>
+                                      <td style={{padding: '8px', border: '1px solid #ddd', color: rowColor}}>{item.sasKalemNo || '-'}</td>
+                                      <td style={{padding: '8px', border: '1px solid #ddd', color: rowColor}}>{item.malzeme}</td>
+                                      <td style={{padding: '8px', border: '1px solid #ddd', color: rowColor}}>{item.kisaMetin}</td>
+                                      <td style={{padding: '8px', border: '1px solid #ddd', color: rowColor}}>{item.bakiyeMiktari} {item.olcuBirimi}</td>
+                                      <td style={{padding: '8px', border: '1px solid #ddd', textAlign: 'center', color: rowColor}}>{item.revizeTarih || item.teslimatTarihi}</td>
+                                      <td style={{padding: '8px', border: '1px solid #ddd', textAlign: 'center', fontWeight: isDelayed ? 'bold' : 'normal', color: rowColor}}>
+                                          {isDelayed ? `GECİKTİ (${Math.abs(item.kalanGun)} Gün)` : isWarning ? `Yaklaşıyor (${item.kalanGun} Gün)` : '-'}
+                                      </td>
+                                  </tr>
+                              );
+                          })}
+                      </tbody>
+                  </table>
+              </div>
+
+              {/* Outro Part (Markdown) */}
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{outro}</ReactMarkdown>
+          </div>
+      );
+  };
 
   return (
     <div className="h-full flex flex-col gap-6 relative">
@@ -861,8 +999,9 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                     <button onClick={downloadMarkdown} className="px-3 py-2 text-sm bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 flex items-center gap-1 shadow-sm">
                         İndir (.md)
                     </button>
-                    <button onClick={copyToClipboard} className="px-3 py-2 text-sm bg-white dark:bg-slate-700 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-1 shadow-sm">
-                        Kopyala
+                    <button onClick={copyRichText} className="px-3 py-2 text-sm bg-blue-600 border border-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1 shadow-sm">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                        Kopyala (Outlook/Gmail)
                     </button>
                  </>
              )}
@@ -944,9 +1083,7 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                                 </button>
                             </div>
                         ) : (
-                            <div className="prose prose-slate prose-sm max-w-none dark:prose-invert">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{emailContent}</ReactMarkdown>
-                            </div>
+                            <RenderEmailPreview />
                         )}
                     </div>
                 </div>
@@ -1020,15 +1157,15 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 shadow-sm">
                                 <tr>
-                                    <RenderHeader label="SA BELGESİ" field="saBelgesi" />
-                                    <RenderHeader label="MALZEME" field="malzeme" />
-                                    <RenderHeader label="KISA METİN" field="kisaMetin" />
-                                    <RenderHeader label="TESLİMAT TARİHİ" field="teslimatTarihi" />
-                                    <RenderHeader label="KALAN GÜN" field="kalanGun" />
-                                    <RenderHeader label="BAKİYE" field="bakiyeMiktari" />
-                                    <RenderHeader label="BİRİM" field="olcuBirimi" />
-                                    <RenderHeader label="TALEP EDEN" field="talepEden" />
-                                    <RenderHeader label="OLUŞTURAN" field="olusturan" />
+                                    <RenderHeader label="SA BELGESİ" field="saBelgesi" align="left" />
+                                    <RenderHeader label="MALZEME" field="malzeme" align="left" />
+                                    <RenderHeader label="KISA METİN" field="kisaMetin" align="left" />
+                                    <RenderHeader label="TESLİMAT TARİHİ" field="teslimatTarihi" align="left" />
+                                    <RenderHeader label="KALAN GÜN" field="kalanGun" align="left" />
+                                    <RenderHeader label="BAKİYE" field="bakiyeMiktari" align="left" />
+                                    <RenderHeader label="BİRİM" field="olcuBirimi" align="left" />
+                                    <RenderHeader label="TALEP EDEN" field="talepEden" align="left" />
+                                    <RenderHeader label="OLUŞTURAN" field="olusturan" align="left" />
                                     <th className="p-4 border-b bg-slate-50 dark:bg-slate-900 select-none text-slate-700 dark:text-slate-300 font-bold text-sm w-1/6">AÇIKLAMA</th>
                                     <th className="p-4 border-b bg-slate-50 dark:bg-slate-900 select-none text-slate-700 dark:text-slate-300 font-bold text-sm text-center">SORULDU?</th>
                                 </tr>
@@ -1037,7 +1174,7 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                                 {filteredAndSortedItems.length > 0 ? (
                                     filteredAndSortedItems.map((item, idx) => {
                                         const isDelayed = item.kalanGun < 0;
-                                        const isWarning = item.kalanGun >= 0 && item.kalanGun <= 7;
+                                        const isWarning = item.kalanGun >= 0 && item.kalanGun <= warningThreshold;
                                         const displayDate = item.revizeTarih || item.teslimatTarihi;
                                         const isModified = !!item.revizeTarih;
                                         const rowKey = getRowKey(item);
@@ -1047,7 +1184,7 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                                         const effectiveRemainingDays = newRemainingDays !== null ? newRemainingDays : item.kalanGun;
                                         
                                         const effectiveIsDelayed = effectiveRemainingDays < 0;
-                                        const effectiveIsWarning = effectiveRemainingDays >= 0 && effectiveRemainingDays <= 7;
+                                        const effectiveIsWarning = effectiveRemainingDays >= 0 && effectiveRemainingDays <= warningThreshold;
 
                                         return (
                                             <tr key={`${item.saBelgesi}-${idx}`} className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 group ${isAsked ? 'opacity-50 grayscale' : ''}`}>
@@ -1223,190 +1360,6 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                         </div>
                     </div>
                  )}
-             </div>
-          )}
-          
-          {/* ... (Analysis tab unchanged) ... */}
-          {/* ANALYSIS TAB */}
-          {activeTab === 'analysis' && (
-             <div className="h-full overflow-y-auto pr-2">
-                 {/* ... (Existing Analysis Content) ... */}
-                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                     <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
-                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <svg className="w-12 h-12 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" /></svg>
-                         </div>
-                         <h4 className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Toplam Açık İş</h4>
-                         <p className="text-3xl font-extrabold text-slate-800 dark:text-white">{stats.total}</p>
-                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-blue-500"></span> Aktif Siparişler
-                         </p>
-                     </div>
-
-                     <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
-                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <svg className="w-12 h-12 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
-                         </div>
-                         <h4 className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Kritik Gecikme</h4>
-                         <p className="text-3xl font-extrabold text-red-600 dark:text-red-500">{stats.critical}</p>
-                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 flex items-center gap-1">
-                            <span className="text-red-500 font-bold">{Math.round((stats.critical / stats.total) * 100)}%</span> toplam sipariş oranı
-                         </p>
-                     </div>
-
-                     <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
-                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <svg className="w-12 h-12 text-orange-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" /></svg>
-                         </div>
-                         <h4 className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Ortalama Gecikme</h4>
-                         <p className="text-3xl font-extrabold text-orange-500">{stats.avgDelay}<span className="text-lg font-medium text-slate-400 dark:text-slate-500 ml-1">Gün</span></p>
-                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">Geciken kalemler için</p>
-                     </div>
-
-                     <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
-                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <svg className="w-12 h-12 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                         </div>
-                         <h4 className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Zamanında Teslim Oranı</h4>
-                         <p className={`text-3xl font-extrabold ${stats.onTimeRate > 80 ? 'text-emerald-500' : 'text-slate-700 dark:text-slate-200'}`}>%{stats.onTimeRate}</p>
-                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                             Hedef: %90 ve üzeri
-                         </p>
-                     </div>
-                 </div>
-
-                 {/* Timeline Chart (Area) */}
-                 <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
-                     <div className="flex items-center justify-between mb-6">
-                        <h4 className="font-bold text-slate-800 dark:text-slate-100 text-lg">Teslimat Zaman Çizelgesi (Önümüzdeki Aylar)</h4>
-                        <span className="text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-900/50">Tahmini İş Yükü</span>
-                     </div>
-                     <div className="h-64 w-full">
-                         {stats.timelineData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={stats.timelineData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: chartTickColor, fontSize: 12}} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{fill: chartTickColor, fontSize: 12}} />
-                                    <CartesianGrid vertical={false} stroke={chartGridStroke} />
-                                    <RechartsTooltip 
-                                        contentStyle={chartTooltipStyle}
-                                        itemStyle={{color: isDarkMode ? '#f1f5f9' : '#1e293b', fontWeight: 'bold'}}
-                                    />
-                                    <Area 
-                                        type="monotone" 
-                                        dataKey="count" 
-                                        stroke="#3b82f6" 
-                                        strokeWidth={3}
-                                        fillOpacity={1} 
-                                        fill="url(#colorCount)" 
-                                        name="Teslimat Sayısı"
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                         ) : (
-                             <div className="flex items-center justify-center h-full text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                                 Veri Yetersiz
-                             </div>
-                         )}
-                     </div>
-                 </div>
-
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
-                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 h-96 flex flex-col">
-                         <h4 className="font-bold text-slate-800 dark:text-slate-100 text-lg mb-2">Sipariş Durum Dağılımı</h4>
-                         <p className="text-sm text-slate-400 dark:text-slate-500 mb-6">Genel portföy durumu</p>
-                         <div className="flex-1 min-h-0 relative">
-                             <ResponsiveContainer width="100%" height="100%">
-                                 <PieChart>
-                                     <Pie
-                                        data={stats.pieData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={80}
-                                        outerRadius={100}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                        label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-                                     >
-                                         {stats.pieData.map((entry, index) => (
-                                             <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
-                                         ))}
-                                     </Pie>
-                                     <RechartsTooltip contentStyle={chartTooltipStyle} />
-                                     <Legend verticalAlign="bottom" height={36} iconType="circle"/>
-                                 </PieChart>
-                             </ResponsiveContainer>
-                             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none -mt-4">
-                                <span className="block text-3xl font-extrabold text-slate-800 dark:text-white">{stats.total}</span>
-                                <span className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest">Sipariş</span>
-                             </div>
-                         </div>
-                     </div>
-
-                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 h-96 flex flex-col">
-                         <h4 className="font-bold text-slate-800 dark:text-slate-100 text-lg mb-2">En Kritik Gecikmeler (Top 7)</h4>
-                         <p className="text-sm text-slate-400 dark:text-slate-500 mb-6">SAS bazlı gecikme süreleri</p>
-                         {stats.sortedByDelay.length > 0 ? (
-                            <div className="flex-1 min-h-0">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        layout="vertical"
-                                        data={stats.sortedByDelay}
-                                        margin={{ top: 0, right: 30, left: 40, bottom: 0 }}
-                                        barSize={20}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={chartGridStroke} />
-                                        <XAxis type="number" hide />
-                                        <YAxis 
-                                            dataKey="name" 
-                                            type="category" 
-                                            width={80} 
-                                            tick={{fontSize: 11, fill: chartTickColor}} 
-                                            axisLine={false}
-                                            tickLine={false}
-                                        />
-                                        <RechartsTooltip 
-                                            cursor={{fill: isDarkMode ? '#334155' : '#f8fafc'}}
-                                            content={({ active, payload }) => {
-                                                if (active && payload && payload.length) {
-                                                const d = payload[0].payload;
-                                                return (
-                                                    <div className="bg-slate-800 dark:bg-slate-700 text-white p-3 shadow-xl rounded-lg text-xs z-50">
-                                                        <p className="font-bold text-sm mb-1">SAS: {d.name}</p>
-                                                        <p className="text-slate-300 mb-2">{d.desc}</p>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                                                            <span className="font-bold">{d.gun} Gün Gecikme</span>
-                                                        </div>
-                                                    </div>
-                                                );
-                                                }
-                                                return null;
-                                            }}
-                                        />
-                                        <Bar dataKey="gun" radius={[0, 4, 4, 0]}>
-                                            {stats.sortedByDelay.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                            <LabelList dataKey="gun" position="right" style={{ fontSize: '11px', fill: chartTickColor, fontWeight: 'bold' }} formatter={(val: number) => `${val} Gün`} />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                         ) : (
-                             <div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-700/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-600">
-                                 <svg className="w-10 h-10 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                 <p className="font-medium">Harika! Geciken sipariş yok.</p>
-                             </div>
-                         )}
-                     </div>
-                 </div>
              </div>
           )}
       </div>

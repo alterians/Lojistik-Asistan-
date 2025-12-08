@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, SchemaType } from "@google/genai";
 import { SapOrderItem, OrderUpdateResult } from '../types';
 
@@ -24,7 +25,7 @@ export const generateEmailDraft = async (
   const dataContext = JSON.stringify(sortedItems.map(item => ({
     PO: item.saBelgesi,
     ItemNo: item.sasKalemNo || "",
-    Material: item.kisaMetin, // Use description as it's more readable than code
+    Material: item.kisaMetin,
     Qty: `${item.bakiyeMiktari} ${item.olcuBirimi}`,
     Date: item.revizeTarih || item.teslimatTarihi || "Belirtilmemiş",
     DaysRemaining: item.kalanGun
@@ -34,27 +35,22 @@ export const generateEmailDraft = async (
     Sen profesyonel bir Lojistik ve Tedarik Zinciri Asistanısın.
     Görevin: Tedarikçi "${vendorName}" için, açık siparişlerin durumunu soran ve termin teyidi isteyen net, anlaşılır bir e-posta oluşturmak.
 
-    Veri Seti (Öncelik Sırasına Göre Sıralanmış):
+    Veri Seti (Sadece referans için, tabloyu sen çizme):
     ${dataContext}
 
     E-posta Yazım Kuralları:
-    1. **Format:** Temiz Markdown kullan.
-    2. **Konu:** "Acil: Açık Sipariş Listesi ve Termin Durumu - ${vendorName}" gibi dikkat çekici bir konu yaz.
+    1. **Format:** Markdown kullanma, düz metin gibi davran ancak paragrafları ayır.
+    2. **Konu:** "Acil: Açık Sipariş Listesi ve Termin Durumu - ${vendorName}" gibi dikkat çekici bir konu önerisi ile başla (Konu: ... şeklinde).
     3. **Giriş:** Kısa ve profesyonel bir giriş yap.
     
-    4. **Sipariş Tablosu (En Önemli Kısım):**
-       - Tüm verileri TEK BİR TABLO içinde sun. Karışıklığı önlemek için tabloları bölme.
-       - Tablo Kolonları şu sırada olsun:
-         | Sipariş No | Kalem | Malzeme Tanımı | Miktar | Termin Tarihi | Durum |
-       - "Durum" kolonunda mantık şu olsun:
-         * Eğer 'DaysRemaining' < 0 ise: **GECİKTİ (X Gün)** (Bold yaz)
-         * Eğer 'DaysRemaining' 0-7 arası ise: Yaklaşıyor (X Gün)
-         * Diğerleri: -
+    4. **Sipariş Tablosu:**
+       - **ÖNEMLİ:** Sipariş tablosunu kendin oluşturma. Tablonun gelmesi gereken yere tam olarak şu ifadeyi yaz: {{SIPARIS_TABLOSU}}
+       - Ben bu ifadeyi daha sonra özel bir Excel formatlı tablo ile değiştireceğim.
        
-    5. **Kapanış:** "Tabloda belirtilen siparişler için güncel terminlerinizi ivedilikle tarafımıza iletmenizi rica ederiz." minvalinde net bir çağrı yap.
+    5. **Kapanış:** "Yukarıdaki tabloda belirtilen siparişler için güncel terminlerinizi ivedilikle tarafımıza iletmenizi rica ederiz." minvalinde net bir çağrı yap.
     6. **Ekstra Notlar:** ${extraInstructions}
 
-    Çıktı sadece e-posta metni olsun. Sohbet cümlesi kurma.
+    Çıktı sadece e-posta metni olsun. Sohbet cümlesi kurma. {{SIPARIS_TABLOSU}} yer tutucusunu mutlaka kullan.
   `;
 
   try {
@@ -78,15 +74,15 @@ export const refineEmail = async (
 
   const prompt = `
     Aşağıdaki e-posta taslağını kullanıcının yeni talimatına göre revize et.
-    Tablo formatını bozma, sadece metin veya tonlamayı ayarla.
+    {{SIPARIS_TABLOSU}} yer tutucusunu KESİNLİKLE koru, silme veya değiştirme.
     
-    Mevcut Taslak (Markdown):
+    Mevcut Taslak:
     ${currentEmail}
 
     Kullanıcı Talimatı:
     "${userInstruction}"
 
-    Sadece revize edilmiş Markdown içeriğini döndür.
+    Sadece revize edilmiş içeriği döndür.
   `;
 
   try {

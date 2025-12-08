@@ -5,6 +5,7 @@ import { FileUpload } from './components/FileUpload';
 import Dashboard from './components/Dashboard';
 import EmailGenerator from './components/EmailGenerator';
 import ComparisonReport from './components/ComparisonReport';
+import { SettingsModal } from './components/SettingsModal'; // Import Settings Modal
 import { compareDatasets } from './utils/comparison';
 
 const App: React.FC = () => {
@@ -16,6 +17,10 @@ const App: React.FC = () => {
   const [initialTab, setInitialTab] = useState<TabType>('email');
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // Settings State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [warningThreshold, setWarningThreshold] = useState<number>(7); // Default 7 days
   
   // Comparison Data
   const [comparisonResult, setComparisonResult] = useState<ComparisonReportData | null>(null);
@@ -44,18 +49,58 @@ const App: React.FC = () => {
     setIsDarkMode(!isDarkMode);
   };
 
+  // --- Recalculate Logic ---
+  const recalculateStatus = (items: SapOrderItem[], threshold: number): SapOrderItem[] => {
+      return items.map(item => {
+          let status: 'critical' | 'warning' | 'ok' = 'ok';
+          // Logic: Negative is critical, 0 to Threshold is warning
+          if (item.kalanGun < 0) {
+              status = 'critical';
+          } else if (item.kalanGun <= threshold) {
+              status = 'warning';
+          }
+          return { ...item, status };
+      });
+  };
+
   const handleDataLoaded = (loadedData: SapOrderItem[]) => {
-    setData(loadedData);
+    // Apply current threshold immediately upon load
+    const processedData = recalculateStatus(loadedData, warningThreshold);
+    setData(processedData);
     setAppState(AppState.DASHBOARD);
     setProcessedVendorIds(new Set());
     setAskedVendorIds(new Set());
   };
   
   const handleCompareLoaded = (oldData: SapOrderItem[], newData: SapOrderItem[]) => {
-      const report = compareDatasets(oldData, newData);
+      // Apply threshold to new data in comparison too
+      const processedNewData = recalculateStatus(newData, warningThreshold);
+      const report = compareDatasets(oldData, processedNewData);
       setComparisonResult(report);
-      setData(newData); 
+      setData(processedNewData); 
       setAppState(AppState.COMPARISON);
+  };
+
+  const handleSettingsSave = (newThreshold: number) => {
+      setWarningThreshold(newThreshold);
+      
+      // Update existing data if loaded
+      if (data.length > 0) {
+          const updatedData = recalculateStatus(data, newThreshold);
+          setData(updatedData);
+          
+          // If a vendor is currently selected, update it too to reflect changes immediately
+          if (selectedVendor) {
+             const updatedVendorItems = recalculateStatus(selectedVendor.items, newThreshold);
+             setSelectedVendor({
+                 ...selectedVendor,
+                 items: updatedVendorItems,
+                 // Re-count stats
+                 criticalCount: updatedVendorItems.filter(i => i.status === 'critical').length,
+                 warningCount: updatedVendorItems.filter(i => i.status === 'warning').length,
+             });
+          }
+      }
   };
 
   const handleSelectVendor = (vendor: VendorSummary, tab: TabType = 'orders') => {
@@ -213,6 +258,15 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col font-sans transition-colors duration-200">
+      
+      {/* Settings Modal */}
+      <SettingsModal 
+         isOpen={isSettingsOpen} 
+         onClose={() => setIsSettingsOpen(false)} 
+         currentThreshold={warningThreshold}
+         onSave={handleSettingsSave}
+      />
+
       {/* Navbar */}
       <header className="bg-slate-900 dark:bg-slate-950 text-white shadow-md z-20 border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -238,6 +292,15 @@ const App: React.FC = () => {
                 )}
                 </div>
             )}
+            
+            {/* Settings Button */}
+            <button 
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors border border-slate-700 group"
+                title="Uygulama Ayarları"
+            >
+                <svg className="w-5 h-5 group-hover:rotate-45 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            </button>
 
             <button 
                 onClick={toggleTheme} 
@@ -281,6 +344,7 @@ const App: React.FC = () => {
           <EmailGenerator 
             vendor={selectedVendor}
             initialTab={initialTab}
+            warningThreshold={warningThreshold} // Pass dynamic threshold
             onBack={handleBackToDashboard} 
             onMarkAsProcessed={() => handleMarkAsProcessedAndExit(selectedVendor.vendorId)}
             onUpdateItem={handleUpdateItem}
