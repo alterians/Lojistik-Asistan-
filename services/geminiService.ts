@@ -3,10 +3,13 @@ import { GoogleGenAI, SchemaType } from "@google/genai";
 import { SapOrderItem, OrderUpdateResult } from '../types';
 
 const getAiClient = () => {
-  const apiKey = process.env.API_KEY;
+  // Check LocalStorage first (User Setting), then Environment Variable
+  const localKey = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : null;
+  const apiKey = localKey || process.env.API_KEY;
+
   if (!apiKey) {
-    console.error("API Key not found in environment variables");
-    throw new Error("API Key is missing. Please select a valid API key.");
+    console.error("API Key not found");
+    throw new Error("API Anahtarı eksik. Lütfen ayarlardan geçerli bir anahtar girin.");
   }
   return new GoogleGenAI({ apiKey });
 };

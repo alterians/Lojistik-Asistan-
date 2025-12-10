@@ -15,10 +15,11 @@ const App: React.FC = () => {
   const [processedVendorIds, setProcessedVendorIds] = useState<Set<string>>(new Set());
   const [askedVendorIds, setAskedVendorIds] = useState<Set<string>>(new Set());
   const [initialTab, setInitialTab] = useState<TabType>('email');
+  
+  // Auth & Settings State
+  const [apiKey, setApiKey] = useState<string>('');
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  
-  // Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [warningThreshold, setWarningThreshold] = useState<number>(7); // Default 7 days
   
@@ -26,9 +27,20 @@ const App: React.FC = () => {
   const [comparisonResult, setComparisonResult] = useState<ComparisonReportData | null>(null);
 
   useEffect(() => {
-    // Check for API Key on mount
-    if (!process.env.API_KEY) {
-      setApiKeyMissing(true);
+    // 1. Check LocalStorage for User Provided Key
+    const localKey = localStorage.getItem('gemini_api_key');
+    
+    // 2. Check Environment Variable
+    const envKey = process.env.API_KEY;
+
+    // 3. Determine active key
+    const activeKey = localKey || envKey;
+
+    if (activeKey) {
+        setApiKey(activeKey);
+        setApiKeyMissing(false);
+    } else {
+        setApiKeyMissing(true);
     }
     
     // Check system preference
@@ -81,8 +93,28 @@ const App: React.FC = () => {
       setAppState(AppState.COMPARISON);
   };
 
-  const handleSettingsSave = (newThreshold: number) => {
+  const handleSettingsSave = (newThreshold: number, newApiKey?: string) => {
       setWarningThreshold(newThreshold);
+      
+      // Update API Key if provided (or cleared)
+      if (newApiKey !== undefined) {
+          if (newApiKey.trim() === '') {
+              localStorage.removeItem('gemini_api_key');
+              // Fallback to Env if exists
+              const envKey = process.env.API_KEY;
+              if (envKey) {
+                  setApiKey(envKey);
+                  setApiKeyMissing(false);
+              } else {
+                  setApiKey('');
+                  setApiKeyMissing(true);
+              }
+          } else {
+              localStorage.setItem('gemini_api_key', newApiKey);
+              setApiKey(newApiKey);
+              setApiKeyMissing(false);
+          }
+      }
       
       // Update existing data if loaded
       if (data.length > 0) {
@@ -241,16 +273,34 @@ const App: React.FC = () => {
   if (apiKeyMissing) {
      return (
        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4">
+         
+         <SettingsModal 
+            isOpen={isSettingsOpen} 
+            onClose={() => setIsSettingsOpen(false)} 
+            currentThreshold={warningThreshold}
+            currentApiKey={apiKey}
+            onSave={handleSettingsSave}
+         />
+
          <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg border border-red-100 dark:border-red-900/30 max-w-md w-full text-center">
             <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
             <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">API Anahtarı Eksik</h2>
-            <p className="text-slate-600 dark:text-slate-300 mb-6">Uygulamayı çalıştırmak için lütfen bir Google Gemini API anahtarı seçin veya sağlayın.</p>
-            <button 
-                onClick={() => window.location.reload()} 
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-                Yeniden Dene
-            </button>
+            <p className="text-slate-600 dark:text-slate-300 mb-6">Uygulamayı çalıştırmak için lütfen bir Google Gemini API anahtarı girin.</p>
+            
+            <div className="flex flex-col gap-3">
+                <button 
+                    onClick={() => setIsSettingsOpen(true)} 
+                    className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+                >
+                    Ayarları Aç ve Anahtar Gir
+                </button>
+                <button 
+                    onClick={() => window.location.reload()} 
+                    className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition"
+                >
+                    Sayfayı Yenile
+                </button>
+            </div>
          </div>
        </div>
      )
@@ -264,6 +314,7 @@ const App: React.FC = () => {
          isOpen={isSettingsOpen} 
          onClose={() => setIsSettingsOpen(false)} 
          currentThreshold={warningThreshold}
+         currentApiKey={apiKey}
          onSave={handleSettingsSave}
       />
 

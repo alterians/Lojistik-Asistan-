@@ -692,12 +692,28 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
         const key = getRowKey(item);
         const newRemainingDays = item.revizeTarih ? calculateDaysRemaining(item.revizeTarih) : null;
         const effectiveRemainingDays = newRemainingDays !== null ? newRemainingDays : item.kalanGun;
+        
+        // Calculate original delay (Days passed since Initial Date)
+        // If initial date is in the past, calculateDaysRemaining returns negative (e.g. -5 days remaining).
+        // We want "Total Delay" as a positive number if it's late.
+        // So we invert the result of calculateDaysRemaining.
+        let originalDelay = null;
+        if (item.ilkTarih) {
+            const diff = calculateDaysRemaining(item.ilkTarih);
+            if (diff !== null) {
+                // If diff is -10 (10 days past due), delay is 10. 
+                // If diff is 10 (10 days remaining), delay is -10 (early).
+                originalDelay = diff * -1;
+            }
+        }
 
         return {
             "SA BELGESİ": item.sasKalemNo ? `${item.saBelgesi} / ${item.sasKalemNo}` : item.saBelgesi,
             "MALZEME": item.malzeme,
             "KISA METİN": item.kisaMetin,
             "TESLİMAT TARİHİ": item.revizeTarih || item.teslimatTarihi || "",
+            "İLK TARİH": item.ilkTarih || "",
+            "İLK TARİHE GÖRE GECİKME": originalDelay !== null ? originalDelay : "",
             "KALAN GÜN": effectiveRemainingDays,
             "BAKİYE": item.bakiyeMiktari,
             "BİRİM": item.olcuBirimi,
@@ -709,19 +725,19 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
     });
     const ws = window.XLSX.utils.json_to_sheet(exportData);
     const wscols = [
-        { wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 12 }
+        { wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 12 }
     ];
     ws['!cols'] = wscols;
 
     // Apply Styles
     if (ws['!ref']) {
         const range = window.XLSX.utils.decode_range(ws['!ref']);
-        // "KALAN GÜN" is the 5th column (Index 4) based on exportData keys above.
-        // SA(0), MALZEME(1), KISA(2), TESLIMAT(3), KALAN(4)
-        const colIndex = 4; 
+        // "KALAN GÜN" is the 7th column (Index 6) now due to added columns.
+        // 0:SA, 1:Malz, 2:Kısa, 3:Teslimat, 4:Ilk, 5:Delay, 6:Kalan
+        const kalanColIndex = 6; 
 
         for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-            const cellAddress = window.XLSX.utils.encode_cell({r: R, c: colIndex});
+            const cellAddress = window.XLSX.utils.encode_cell({r: R, c: kalanColIndex});
             const cell = ws[cellAddress];
             
             if (cell && cell.v !== undefined) {
@@ -1361,6 +1377,139 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
                     </div>
                  )}
              </div>
+          )}
+
+          {/* ANALYSIS TAB */}
+          {activeTab === 'analysis' && (
+            <div className="h-full overflow-y-auto p-6 bg-slate-50 dark:bg-slate-900/50 scrollbar-thin">
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Toplam Sipariş</div>
+                        <div className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Zamanında Oranı</div>
+                        <div className={`text-2xl font-bold ${stats.onTimeRate >= 80 ? 'text-green-600' : stats.onTimeRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>%{stats.onTimeRate}</div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Ort. Gecikme</div>
+                        <div className="text-2xl font-bold text-slate-800 dark:text-white">{stats.avgDelay} Gün</div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Riskli Sipariş</div>
+                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.critical + stats.warning}</div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    {/* Status Pie Chart */}
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col h-80">
+                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase">Durum Dağılımı</h3>
+                        <div className="flex-1 min-h-0 flex items-center">
+                            {/* Chart Section */}
+                            <div className="w-1/2 h-full relative">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={stats.pieData}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius="60%"
+                                            outerRadius="80%"
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                            stroke="none"
+                                        >
+                                            {stats.pieData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                            ))}
+                                        </Pie>
+                                        <RechartsTooltip contentStyle={chartTooltipStyle} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                 {/* Center Text */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                    <span className="text-3xl font-bold text-slate-700 dark:text-slate-200">{stats.total}</span>
+                                    <span className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam</span>
+                                </div>
+                            </div>
+
+                            {/* Custom Legend Section */}
+                            <div className="w-1/2 pl-4 flex flex-col justify-center gap-3">
+                                {stats.pieData.map((d, i) => (
+                                    <div key={i} className="flex items-center justify-between group">
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }}></span>
+                                            <span className="text-sm text-slate-600 dark:text-slate-300">{d.name}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{d.value}</div>
+                                            <div className="text-xs text-slate-400">
+                                                {((d.value / stats.total) * 100).toFixed(1)}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Top Delays Bar Chart */}
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col h-80">
+                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 uppercase">En Çok Gecikenler (Top 7)</h3>
+                        <div className="flex-1 min-h-0">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    layout="vertical"
+                                    data={stats.sortedByDelay}
+                                    margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                                    barSize={20}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={chartGridStroke} />
+                                    <XAxis type="number" />
+                                    <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 11, fill: chartTickColor}} />
+                                    <RechartsTooltip 
+                                        cursor={{fill: isDarkMode ? '#334155' : '#f8fafc'}}
+                                        contentStyle={chartTooltipStyle}
+                                        formatter={(value: any, name: any, props: any) => [`${value} Gün`, props.payload.desc]}
+                                    />
+                                    <Bar dataKey="gun" name="Gecikme (Gün)" radius={[0, 4, 4, 0]}>
+                                        {stats.sortedByDelay.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Timeline Area Chart */}
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 h-80 flex flex-col">
+                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 uppercase">Teslimat Zaman Çizelgesi</h3>
+                    <div className="flex-1 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart
+                                data={stats.timelineData}
+                                margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                            >
+                                <defs>
+                                    <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="name" tick={{fontSize: 12, fill: chartTickColor}} />
+                                <YAxis tick={{fontSize: 12, fill: chartTickColor}} />
+                                <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
+                                <RechartsTooltip contentStyle={chartTooltipStyle} />
+                                <Area type="monotone" dataKey="count" name="Sipariş Sayısı" stroke="#3b82f6" fillOpacity={1} fill="url(#colorCount)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
           )}
       </div>
     </div>

@@ -11,6 +11,7 @@ export interface SapOrderItem {
   bakiyeMiktari: number;  // Bakiye Miktarı
   olcuBirimi: string;     // Ölçü Birimi
   teslimatTarihi?: string;// Teslimat Tarihi (Display)
+  ilkTarih?: string;      // İlk Teslimat Tarihi (Original Promise Date)
   
   // New fields for Item tracking and Updates
   sasKalemNo?: string;    // SAS Kalem No (Item Number)

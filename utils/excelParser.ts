@@ -133,6 +133,7 @@ export const parseExcelData = async (file: File): Promise<SapOrderItem[]> => {
             sasKalemNo: findHeaderIndex(headers, ['Kalem', 'Kalem No', 'SAS Kalemi', 'Siparis Kalemi']), 
             kalanGun: findHeaderIndex(headers, ['KALAN GÜN', 'Kalan Gun', 'Gun']),
             teslimatTarihi: findHeaderIndex(headers, ['Teslimat Tarihi', 'Teslim Tarihi', 'Tarih']),
+            ilkTarih: findHeaderIndex(headers, ['Ilk Tarih', 'İlk Tarih', 'Ilk Teslimat', 'İlk Teslimat Tarihi']),
             saticiKodu: findHeaderIndex(headers, ['Satici', 'Satıcı', 'Satıcı Kodu']),
             saticiAdi: findHeaderIndex(headers, ['Satici Adi', 'Satıcı Adı', 'Tedarikçi', 'Tedarikçi Adı']),
             malzeme: findHeaderIndex(headers, ['Malzeme', 'Malzeme No']),
@@ -156,6 +157,7 @@ export const parseExcelData = async (file: File): Promise<SapOrderItem[]> => {
           let kalanGun = 0;
           const rawKalan = getVal(idx.kalanGun);
           const rawTeslimat = getVal(idx.teslimatTarihi);
+          const rawIlkTarih = getVal(idx.ilkTarih);
           
           // Calculate logic
           if (rawKalan !== null && rawKalan !== '' && !isNaN(parseInt(rawKalan))) {
@@ -168,6 +170,7 @@ export const parseExcelData = async (file: File): Promise<SapOrderItem[]> => {
 
           // Format display date string
           const teslimatStr = formatDisplayDate(rawTeslimat);
+          const ilkTarihStr = formatDisplayDate(rawIlkTarih);
 
           // Determine Status
           let status: 'critical' | 'warning' | 'ok' = 'ok';
@@ -206,6 +209,7 @@ export const parseExcelData = async (file: File): Promise<SapOrderItem[]> => {
             bakiyeMiktari: Number(getVal(idx.bakiyeMiktari) || 0),
             olcuBirimi: String(getVal(idx.olcuBirimi) || 'ADT'),
             teslimatTarihi: teslimatStr,
+            ilkTarih: ilkTarihStr, // Added parsed Initial Date
             status,
             // New columns
             talepEden: String(getVal(idx.talepEden) || ''),
