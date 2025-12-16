@@ -1,10 +1,11 @@
 
 import React, { useMemo, useState } from 'react';
-import { SapOrderItem, VendorSummary, TabType } from '../types';
+import { SapOrderItem, VendorSummary, TabType, VendorContact } from '../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface DashboardProps {
   data: SapOrderItem[];
+  contacts?: Record<string, VendorContact>; // Optional Contacts
   processedVendorIds: Set<string>;
   askedVendorIds: Set<string>;
   onToggleProcessed: (vendorId: string) => void;
@@ -17,6 +18,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   data, 
+  contacts,
   processedVendorIds, 
   askedVendorIds,
   onToggleProcessed, 
@@ -36,13 +38,17 @@ const Dashboard: React.FC<DashboardProps> = ({
     data.forEach(item => {
       const key = item.saticiAdi;
       if (!groups[key]) {
+        // Find contact info using vendor code
+        const contactInfo = contacts ? contacts[item.saticiKodu] : undefined;
+
         groups[key] = {
           vendorId: item.saticiKodu,
           vendorName: item.saticiAdi,
           itemCount: 0,
           criticalCount: 0,
           warningCount: 0,
-          items: []
+          items: [],
+          contact: contactInfo
         };
       }
       groups[key].items.push(item);
@@ -52,7 +58,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
 
     return Object.values(groups);
-  }, [data]);
+  }, [data, contacts]);
 
   const filteredVendors = useMemo(() => {
     let result = [...vendorSummaries];
@@ -240,6 +246,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       const isAsked = askedVendorIds.has(vendor.vendorId);
                       const hasCritical = vendor.criticalCount > 0;
                       const hasWarning = vendor.warningCount > 0;
+                      const hasContact = !!vendor.contact;
                       
                       return (
                         <tr 
@@ -250,7 +257,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                             className="p-4 cursor-pointer" 
                             onClick={() => onSelectVendor(vendor, 'orders')}
                           >
-                            <div className={`font-semibold ${isProcessed ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors'}`}>{vendor.vendorName}</div>
+                            <div className={`font-semibold flex items-center gap-2 ${isProcessed ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors'}`}>
+                                {vendor.vendorName}
+                                {hasContact && (
+                                    <span title="İletişim Bilgisi Mevcut" className="text-blue-500">
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg>
+                                    </span>
+                                )}
+                            </div>
                             <div className="text-xs text-slate-400 dark:text-slate-500">{vendor.vendorId}</div>
                           </td>
                           <td className="p-4 text-center">

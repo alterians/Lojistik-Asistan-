@@ -35,13 +35,18 @@ const calculateDaysRemaining = (dateStr: string): number | null => {
     if (parts.length !== 3) return null;
     
     const targetDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    
+    // Fix: Force targetDate to local midnight to avoid UTC/Timezone offsets
+    targetDate.setHours(0, 0, 0, 0);
+
     if (isNaN(targetDate.getTime())) return null;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     const diffTime = targetDate.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Use Math.round instead of Math.ceil because we snapped both to midnight.
+    return Math.round(diffTime / (1000 * 60 * 60 * 24));
 };
 
 // --- Helper for Image Upload ---
@@ -468,6 +473,9 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
   // Asked Status State
   const [askedItems, setAskedItems] = useState<Set<string>>(new Set());
 
+  // Copy Feedback State
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Sorting & Filtering State
@@ -501,6 +509,12 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
           else next.add(key);
           return next;
       });
+  };
+
+  const handleCopy = (text: string, field: string) => {
+      navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
   };
 
   // --- Email Logic ---
@@ -815,6 +829,10 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
     return items;
   }, [vendor.items, sortConfig, filters]);
 
+  const modifiedCount = useMemo(() => {
+      return vendor.items.filter(i => i.revizeTarih).length;
+  }, [vendor.items]);
+
   const stats = useMemo(() => {
     const total = vendor.items.length;
     const critical = vendor.items.filter(i => i.status === 'critical').length;
@@ -827,9 +845,9 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
         : 0;
 
     const pieData = [
-        { name: 'Gecikmiş', value: critical, color: '#ef4444' },
+        { name: 'Geciken', value: critical, color: '#ef4444' },
         { name: 'Yaklaşan', value: warning, color: '#f59e0b' },
-        { name: 'Zamanında', value: ok, color: '#10b981' }
+        { name: 'Normal', value: ok, color: '#10b981' } // Changed from 'Zamanında' to 'Sorun Yok'
     ].filter(d => d.value > 0);
 
     const sortedByDelay = [...vendor.items]
@@ -858,8 +876,6 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
     const timelineData = Object.entries(timelineGroups).map(([name, count]) => ({ name, count }));
     return { total, critical, warning, ok, avgDelay, pieData, sortedByDelay, timelineData, onTimeRate };
   }, [vendor]);
-
-  const modifiedCount = vendor.items.filter(i => i.revizeTarih).length;
 
   const RenderHeader = ({ label, field, align = 'left' }: { label: string, field: SortKey, align?: 'left' | 'right' }) => {
       const isFiltered = filters[field] !== undefined;
@@ -989,7 +1005,7 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
       
       {/* Header Area */}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 flex flex-col md:flex-row justify-between items-center gap-4">
-        {/* ... (Header content unchanged) ... */}
+        {/* Left Side: Back Button & Title */}
         <div className="flex items-center gap-4 w-full md:w-auto">
            <button 
               onClick={onBack} 
@@ -999,8 +1015,10 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
               Geri
             </button>
             <div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-white leading-tight">{vendor.vendorName}</h2>
-                <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+                <h2 className="text-xl font-bold text-slate-800 dark:text-white leading-tight flex items-center gap-2">
+                    {vendor.vendorName}
+                </h2>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400 mt-1">
                     <span>{vendor.vendorId}</span>
                     <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
                     <span>{stats.total} Sipariş</span>
@@ -1009,6 +1027,67 @@ const EmailGenerator: React.FC<EmailGeneratorProps> = ({
             </div>
         </div>
 
+        {/* Center: Contact Info (If available) */}
+        {vendor.contact && (
+            <div className="hidden lg:flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/30 px-4 py-2 rounded-lg border border-slate-100 dark:border-slate-700/50 min-w-[200px]">
+                <div className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide text-[10px] mb-0.5">İletişim</div>
+                
+                {vendor.contact.contactName && (
+                    <div className="flex items-center gap-2" title="Yetkili Kişi">
+                        <svg className="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        <span className="font-semibold truncate">{vendor.contact.contactName}</span>
+                    </div>
+                )}
+                
+                {vendor.contact.contactPhone && (
+                    <div className="flex items-center gap-2 group/phone" title="Telefonu Kopyala">
+                        <svg className="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                        <span 
+                            className={`truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${copiedField === 'phone' ? 'text-green-600 dark:text-green-400 font-medium' : ''}`}
+                            onClick={() => handleCopy(vendor.contact!.contactPhone!, 'phone')}
+                        >
+                            {vendor.contact.contactPhone}
+                        </span>
+                        <button 
+                            onClick={() => handleCopy(vendor.contact!.contactPhone!, 'phone')}
+                            className="opacity-0 group-hover/phone:opacity-100 transition-opacity text-slate-400 hover:text-blue-600"
+                            title="Kopyala"
+                        >
+                            {copiedField === 'phone' ? (
+                                <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                            ) : (
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            )}
+                        </button>
+                    </div>
+                )}
+                
+                {vendor.contact.contactEmail && (
+                    <div className="flex items-center gap-2 group/email" title="E-Postayı Kopyala">
+                        <svg className="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <span 
+                            className={`truncate max-w-[200px] cursor-pointer hover:underline transition-colors ${copiedField === 'email' ? 'text-green-600 dark:text-green-400 font-medium' : 'text-blue-600 dark:text-blue-400'}`}
+                            onClick={() => handleCopy(vendor.contact!.contactEmail!, 'email')}
+                        >
+                            {vendor.contact.contactEmail}
+                        </span>
+                        <button 
+                            onClick={() => handleCopy(vendor.contact!.contactEmail!, 'email')}
+                            className="opacity-0 group-hover/email:opacity-100 transition-opacity text-slate-400 hover:text-blue-600"
+                            title="Kopyala"
+                        >
+                            {copiedField === 'email' ? (
+                                <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                            ) : (
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            )}
+                        </button>
+                    </div>
+                )}
+            </div>
+        )}
+
+        {/* Right Side: Action Buttons */}
         <div className="flex gap-2 w-full md:w-auto md:justify-end">
              {activeTab === 'email' && emailContent && (
                  <>

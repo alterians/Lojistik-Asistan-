@@ -26,6 +26,35 @@ export interface SapOrderItem {
   status?: 'critical' | 'warning' | 'ok'; 
 }
 
+export interface VendorContact {
+  vendorId: string;
+  contactName?: string; // Tedarikçi Temsilcisi
+  contactPhone?: string; // Temsilci Tel
+  contactEmail?: string; // Temsilci E-Mail
+}
+
+// Firestore Model for Suppliers
+export interface Supplier {
+  sellerCode: string;          // Satıcı (Unique Key for Upsert logic)
+  sellerName?: string;         // Satıcının adı
+  scope?: string;              // Kapsam
+  subScope?: string;           // Alt Kapsam
+  city?: string;               // İl
+  region?: string;             // Bölge
+  purchasingSpecialist?: string; // Satınalma Uzmanı
+  supplierRepName?: string;    // Tedarikçi Temsilcisi
+  supplierRepPhone?: string;   // Temsilci Tel.
+  supplierRepEmail?: string;   // Temsilci E-Mail
+  distribution_17_11?: string; // 17.11 DAĞILIM
+  mipName?: string;            // MIP İSİM
+  
+  // Metadata
+  source?: string;
+  sourceFileName?: string;
+  updatedAt?: any;
+  createdAt?: any;
+}
+
 export interface VendorSummary {
   vendorId: string;
   vendorName: string;
@@ -33,6 +62,7 @@ export interface VendorSummary {
   criticalCount: number;
   warningCount: number; // Added for Approaching deadlines
   items: SapOrderItem[];
+  contact?: VendorContact; // New field for contact details
 }
 
 export enum AppState {

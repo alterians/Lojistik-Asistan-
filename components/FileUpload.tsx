@@ -1,10 +1,10 @@
 
 import React, { useCallback, useState } from 'react';
 import { parseExcelData } from '../utils/excelParser';
-import { SapOrderItem } from '../types';
+import { SapOrderItem, VendorContact, Supplier } from '../types';
 
 interface FileUploadProps {
-  onDataLoaded: (data: SapOrderItem[]) => void;
+  onDataLoaded: (data: SapOrderItem[], contacts: Record<string, VendorContact>, suppliers: Supplier[], fileName: string) => void;
   onCompareLoaded: (oldData: SapOrderItem[], newData: SapOrderItem[]) => void;
 }
 
@@ -26,11 +26,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, onCompareL
     setLoading(true);
     setError(null);
     try {
-      const data = await parseExcelData(file);
-      if (data.length === 0) {
+      const { items, contacts, suppliers } = await parseExcelData(file);
+      if (items.length === 0) {
         setError("Veri bulunamadı. Lütfen Excel dosyasının doğru formatta olduğundan emin olun.");
       } else {
-        onDataLoaded(data);
+        onDataLoaded(items, contacts, suppliers, file.name);
       }
     } catch (err) {
       setError("Dosya işlenirken bir hata oluştu. Lütfen dosya formatını kontrol edin.");
@@ -63,9 +63,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, onCompareL
     setCompareLoading(true);
     setError(null);
     try {
-        const oldData = await parseExcelData(oldFile);
-        const newData = await parseExcelData(newFile);
-        onCompareLoaded(oldData, newData);
+        const oldResult = await parseExcelData(oldFile);
+        const newResult = await parseExcelData(newFile);
+        onCompareLoaded(oldResult.items, newResult.items);
     } catch (err) {
         setError("Dosyalar işlenirken hata oluştu.");
     } finally {
@@ -103,7 +103,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, onCompareL
                     </svg>
                     </div>
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white">SAP Raporu Yükle</h2>
-                    <p className="text-slate-500 dark:text-slate-400 mt-2">Açık sipariş listenizi (.xlsx) yükleyerek asistanı başlatın.</p>
+                    <p className="text-slate-500 dark:text-slate-400 mt-2">Açık sipariş listenizi (.xlsx) yükleyerek asistanı başlatın.<br/><span className="text-xs text-blue-500">Not: 'TEDARİKCİ LIST' sayfası varsa iletişim bilgileri otomatik alınır.</span></p>
                 </div>
 
                 <div
@@ -205,7 +205,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, onCompareL
         <div className="mt-6 border-t border-slate-100 dark:border-slate-700 pt-4">
             <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Otomatik Algılanan Kolonlar</h4>
             <div className="flex flex-wrap gap-2">
-            {['SA Belgesi', 'KALAN GÜN', 'Teslimat Tarihi', 'Satıcı Adı', 'Malzeme', 'Kısa Metin'].map(tag => (
+            {['SA Belgesi', 'KALAN GÜN', 'Teslimat Tarihi', 'Satıcı Adı', 'Malzeme', 'Kısa Metin', 'TEDARİKCİ LIST (Opsiyonel)'].map(tag => (
                 <span key={tag} className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-xs rounded-md border border-slate-200 dark:border-slate-600">{tag}</span>
             ))}
             </div>
